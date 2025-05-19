@@ -1,0 +1,13 @@
+:root {
+  --color-primario: #7c245c;   /* Fuerte, ideal para botones principales */
+  --color-secundario: #cc8bab; /* Rosa pastel */
+  --color-acento: #7c1454;     /* Acento más oscuro */
+  --color-suave: #a45484;      /* Fondo de tarjetas */
+  --color-claro: #cc94ac;      /* Fondo general */
+
+  /* Complementarios */
+  --color-fondo: #fdfbfc;
+  --color-texto: #2b2b2b;
+  --color-blanco: #ffffff;
+  --color-negro: #000000;
+}

@@ -1,0 +1,97 @@
+@import './assets/colors.css';
+
+/* === RESET === */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Nunito Sans', sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 200;
+  font-style: normal;
+  background-color: var(--color-fondo);
+  color: var(--color-texto);
+  min-height: 100vh;
+}
+
+/* === CONTENEDORES === */
+.container {
+  max-width: 1900px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.card {
+  background-color: var(--color-suave);
+  color: var(--color-blanco);
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1rem;
+}
+
+/* === TIPOGRAFÍA === */
+h1, h2, h3 {
+  color: var(--color-primario);
+  margin-bottom: 0.5rem;
+}
+
+p {
+  margin-bottom: 1rem;
+}
+
+/* === ENLACES === */
+a {
+  color: var(--color-primario);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--color-acento);
+}
+
+/* === BOTONES === */
+button {
+  background-color: var(--color-primario);
+  color: var(--color-blanco);
+  border: none;
+  border-radius: 6px;
+  padding: 0.6rem 1.2rem;
+  font-weight: bold;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+button:hover {
+  background-color: var(--color-acento);
+}
+button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+/* === FORMULARIOS === */
+
+
+/* === LAYOUT FLEX === */
+
+
+/* === UTILIDADES === */
+.text-center {
+  text-align: center;
+}
+
+.bg-primario {
+  background-color: var(--color-primario);
+}
+.bg-secundario {
+  background-color: var(--color-secundario);
+}
+.bg-suave {
+  background-color: var(--color-suave);
+}
+.text-blanco {
+  color: var(--color-blanco);
+}
