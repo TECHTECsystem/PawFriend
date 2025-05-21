@@ -17,7 +17,7 @@
 
     <!-- Tarjetas KPI -->
     <div class="row mb-4">
-      <div class="col-md-6 col-lg-3 mb-3" v-for="(kpi, index) in kpis" :key="index">
+      <div class="col-md-6 col-lg-3 mb-3" v-for="(kpi, index) in kpisFormateados" :key="index">
         <div class="card tarjeta-kpi h-100">
           <div class="card-body d-flex align-items-center">
             <i class="material-icons kpi-icon me-3">{{ kpi.icono }}</i>
@@ -133,7 +133,7 @@
 
 <script>
 import Navbar from '../components/Navbar.vue'
-import { useRouter } from 'vue-router'
+import Swal from 'sweetalert2'
 
 export default {
   name: 'Dashboard',
@@ -144,58 +144,40 @@ export default {
       fecha: '',
       hora: '',
       intervalo: null,
-
-      kpis: [
-        { titulo: 'Ventas del día', valor: '$1,200', icono: 'attach_money' },
-        { titulo: 'Ventas del mes', valor: '$18,450', icono: 'calendar_today' },
-        { titulo: 'Clientes registrados', valor: '87', icono: 'people' },
-        { titulo: 'Productos activos', valor: '312', icono: 'inventory_2' }
-      ],
-
+      loading: {
+        kpis: false,
+        citas: false,
+        productos: false
+      },
+      kpis: {
+        ventasDia: 0,
+        ventasMes: 0,
+        clientes: 0,
+        productosActivos: 0
+      },
       accesos: [
         { label: 'Nueva venta', icono: 'point_of_sale', ruta: '/ventas' },
         { label: 'Registrar cliente', icono: 'person_add', ruta: '/clientes' },
         { label: 'Agregar producto', icono: 'add_box', ruta: '/productos' },
         { label: 'Agendar servicio', icono: 'event', ruta: '/servicios' }
       ],
-
-      citas: [
-        { hora: '09:00', nombre: 'Firulais', servicio: 'Vacunación' },
-        { hora: '11:30', nombre: 'Mishi', servicio: 'Consulta general' },
-        { hora: '15:00', nombre: 'Toby', servicio: 'Baño y estética' },
-        { hora: '16:30', nombre: 'Luna', servicio: 'Desparacitación' },
-        { hora: '18:00', nombre: 'Rocky', servicio: 'Consulta general' },
-        { hora: '19:30', nombre: 'Bella', servicio: 'Vacunación' },
-        { hora: '20:00', nombre: 'Max', servicio: 'Baño y estética' },
-        { hora: '21:00', nombre: 'Lola', servicio: 'Desparacitación' },
-        { hora: '22:00', nombre: 'Coco', servicio: 'Consulta general' },
-        { hora: '23:00', nombre: 'Nina', servicio: 'Vacunación' },
-        { hora: '23:30', nombre: 'Leo', servicio: 'Baño y estética' },
-        { hora: '24:00', nombre: 'Duke', servicio: 'Desparacitación' },
-        { hora: '01:00', nombre: 'Zoe', servicio: 'Consulta general' },
-        { hora: '02:00', nombre: 'Chico', servicio: 'Vacunación' },
-        { hora: '03:00', nombre: 'Luna', servicio: 'Baño y estética' }
-      ],
+      citas: [],
       paginaCitas: 1,
       citasPorPagina: 5,
-
-      productos: [
-        { nombre: 'Desparasitante', stock: 2, minimo: 5 },
-        { nombre: 'Croquetas Adulto', stock: 1, minimo: 10 },
-        { nombre: 'Jabón antipulgas', stock: 0, minimo: 3 },
-        { nombre: 'Collar antipulgas', stock: 5, minimo: 2 },
-        { nombre: 'Champú', stock: 8, minimo: 5 },
-        { nombre: 'Cama para perro', stock: 4, minimo: 1 },
-        { nombre: 'Juguete para perro', stock: 3, minimo: 2 },
-        { nombre: 'Comedero', stock: 6, minimo: 3 },
-        { nombre: 'Plato de agua', stock: 7, minimo: 4 },
-        { nombre: 'Correa', stock: 9, minimo: 5 }
-      ],
+      productos: [],
       paginaProductos: 1,
       productosPorPagina: 5
     }
   },
   computed: {
+      kpisFormateados() {
+    return [
+      { titulo: 'Ventas del día', valor: `$${parseFloat(this.kpis.ventasDia).toFixed(2)}`, icono: 'attach_money' },
+      { titulo: 'Ventas del mes', valor: `$${parseFloat(this.kpis.ventasMes).toFixed(2)}`, icono: 'calendar_today' },
+      { titulo: 'Clientes registrados', valor: this.kpis.clientes, icono: 'people' },
+      { titulo: 'Productos activos', valor: this.kpis.productosActivos, icono: 'inventory_2' }
+    ]
+  },
     citasPaginadas() {
       const start = (this.paginaCitas - 1) * this.citasPorPagina
       return this.citas.slice(start, start + this.citasPorPagina)
@@ -215,6 +197,7 @@ export default {
     this.cargarUsuario()
     this.actualizarReloj()
     this.intervalo = setInterval(this.actualizarReloj, 1000)
+    this.cargarDatosDashboard()
   },
   beforeDestroy() {
     clearInterval(this.intervalo)
@@ -223,20 +206,111 @@ export default {
     cargarUsuario() {
       const usuarioGuardado = localStorage.getItem('usuario')
       if (!usuarioGuardado) {
-        this.$router.push('/login') // Redirige si no hay sesión
+        this.$router.push('/login')
         return
       }
       this.usuario = JSON.parse(usuarioGuardado)
     },
     actualizarReloj() {
       const ahora = new Date()
-      const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }
+      const opcionesFecha = { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      }
       this.fecha = ahora.toLocaleDateString('es-MX', opcionesFecha)
       this.hora = ahora.toLocaleTimeString('es-MX')
+    },
+    async cargarDatosDashboard() {
+      await Promise.all([
+        this.cargarKPIs(),
+        this.cargarCitas(),
+        this.cargarProductosBajoStock()
+      ])
+    },
+    async cargarKPIs() {
+      this.loading.kpis = true
+      try {
+        const res = await fetch('http://localhost:8080/dashboard/kpis')
+        
+        if (!res.ok) {
+          throw new Error(`Error HTTP: ${res.status}`)
+        }
+        
+        const data = await res.json()
+        this.kpis = {
+          ventasDia: data.ventasDia || 0,
+          ventasMes: data.ventasMes || 0,
+          clientes: data.clientes || 0,
+          productosActivos: data.productosActivos || 0
+        }
+      } catch (error) {
+        console.error('Error al cargar KPIs:', error)
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'No se pudieron cargar los indicadores',
+          confirmButtonColor: '#7c245c'
+        })
+      } finally {
+        this.loading.kpis = false
+      }
+    },
+    async cargarCitas() {
+      this.loading.citas = true
+      try {
+        const res = await fetch('http://localhost:8080/dashboard/citas-hoy')
+        
+        if (!res.ok) {
+          throw new Error(`Error HTTP: ${res.status}`)
+        }
+        
+        const data = await res.json()
+        this.citas = Array.isArray(data) ? data : []
+      } catch (error) {
+        console.error('Error al cargar citas:', error)
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'No se pudieron cargar las citas',
+          confirmButtonColor: '#7c245c'
+        })
+      } finally {
+        this.loading.citas = false
+      }
+    },
+    async cargarProductosBajoStock() {
+      this.loading.productos = true
+      try {
+        const res = await fetch('http://localhost:8080/dashboard/stock-bajo')
+        
+        if (!res.ok) {
+          throw new Error(`Error HTTP: ${res.status}`)
+        }
+        
+        const data = await res.json()
+        this.productos = Array.isArray(data) ? data.map(p => ({
+          nombre: p.nombre || '',
+          stock: p.stock || 0,
+          minimo: p.minimo || 0
+        })) : []
+      } catch (error) {
+        console.error('Error al cargar productos con bajo stock:', error)
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'No se pudieron cargar los productos',
+          confirmButtonColor: '#7c245c'
+        })
+      } finally {
+        this.loading.productos = false
+      }
     }
   }
 }
 </script>
+
 
 
 <style scoped>

@@ -1,5 +1,10 @@
 <template>
   <Navbar />
+        <!-- ENCABEZADO -->
+    <div class="container">
+      <h2 class="mb-1">Proveedores</h2>
+      <p class="text">Control y gestión de proveedores.</p>
+    </div>
   <div class="dashboard-contenedor">
     <div class="contenido">
       <div class="card tabla-contenedor">
@@ -28,10 +33,8 @@
                 <th>Domicilio Entrega</th>
                 <th>Contacto</th>
                 <th>Cond. Pago</th>
-                <th>Moneda</th>
                 <th>Cuenta Contable</th>
                 <th>Centro Costo</th>
-                <th>Transportista/Incoterm</th>
                 <th class="text-center">Acciones</th>
               </tr>
             </thead>
@@ -52,10 +55,8 @@
                   <small>{{ proveedor.contacto.telefono }}</small>
                 </td>
                 <td>{{ proveedor.condicionesPago.diasNetos }} días, {{ proveedor.condicionesPago.descuento }}%</td>
-                <td>{{ proveedor.moneda }}<span v-if="proveedor.tipoCambio"> ({{ proveedor.tipoCambio }})</span></td>
                 <td>{{ proveedor.cuentaContable }}</td>
                 <td>{{ proveedor.centroCosto }}</td>
-                <td>{{ proveedor.transportista }}<span v-if="proveedor.incoterm"> / {{ proveedor.incoterm }}</span></td>
                 <td class="text-center align-middle">
                   <div class="d-flex justify-content-center">
                     <button class="btn-ver" @click="alternarSeleccion(proveedor)" style="background: var(--color-acento); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
@@ -289,6 +290,7 @@ import Swal from 'sweetalert2';
 import useVuelidate from '@vuelidate/core';
 import { required, minLength, email, numeric, minValue } from '@vuelidate/validators';
 import * as XLSX from 'xlsx';
+import axios from 'axios';
 
 const MONEDAS = [
   { value: '', label: 'Selecciona moneda' },
@@ -305,22 +307,7 @@ export default {
   data() {
     return {
       busqueda: '',
-      proveedores: [
-        {
-          id: 'PRV001', razonSocial: 'Distribuidora Animalia', rfc: 'DAN123456789',
-          domicilioFiscal: 'Av. Reforma 123, CDMX', domicilioEntrega: 'Bodega 2, CDMX',
-          contacto: { nombre: 'Ana Torres', email: 'ana@animalia.com', telefono: '555-123-4567' },
-          condicionesPago: { diasNetos: 30, descuento: 5 }, moneda: 'MXN', tipoCambio: 1,
-          cuentaContable: '5010', centroCosto: 'CC01', transportista: 'DHL', incoterm: 'EXW'
-        },
-        {
-          id: 'PRV002', razonSocial: 'VetPro S.A.', rfc: 'VPS987654321',
-          domicilioFiscal: 'Calle 5 de Mayo 456, Puebla', domicilioEntrega: 'Sucursal Puebla',
-          contacto: { nombre: 'Luis Pérez', email: 'luis@vetpro.com', telefono: '222-987-6543' },
-          condicionesPago: { diasNetos: 15, descuento: 3 }, moneda: 'USD', tipoCambio: 17.2,
-          cuentaContable: '5020', centroCosto: 'CC02', transportista: 'FedEx', incoterm: 'FOB'
-        }
-      ],
+      proveedores: [],
       proveedorSeleccionado: null,
       modoEdicion: false,
       paginaActual: 1,
@@ -363,10 +350,8 @@ export default {
     proveedoresFiltrados() {
       if (this.proveedorSeleccionado) return [this.proveedorSeleccionado];
       const filtro = this.busqueda.toLowerCase();
-      // Recursivo: busca en todas las propiedades primitivas
       function contiene(obj, termino) {
         for (const key in obj) {
-          if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
           const val = obj[key];
           if (val == null) continue;
           if (typeof val === 'string' || typeof val === 'number') {
@@ -385,57 +370,71 @@ export default {
     },
     totalPaginas() {
       return Math.ceil(this.proveedoresFiltrados.length / this.proveedoresPorPagina) || 1;
-    }
-  },
-  watch: {
-    modoEdicion(val) {
-      if (val) {
-        this.activarGuardadoNavegacion();
-      } else {
-        this.removerGuardadoNavegacion();
-      }
-    }
+    },
+    abrirModalNuevoProveedor() {
+  this.nuevoProveedor = {
+    id: '',
+    razonSocial: '',
+    rfc: '',
+    domicilioFiscal: '',
+    domicilioEntrega: '',
+    contacto: {
+      nombre: '',
+      email: '',
+      telefono: ''
+    },
+    condicionesPago: {
+      diasNetos: 0,
+      descuento: 0
+    },
+    moneda: '',
+    tipoCambio: '',
+    cuentaContable: '',
+    centroCosto: '',
+    transportista: '',
+    incoterm: ''
+  }
+
+  if (this.v$ && this.v$.$reset) this.v$.$reset()
+
+  const modal = new window.bootstrap.Modal(document.getElementById('modalNuevoProveedor'))
+  modal.show()
+}
   },
   mounted() {
-    if (this.modoEdicion) this.activarGuardadoNavegacion();
-  },
-  beforeUnmount() {
-    this.removerGuardadoNavegacion();
+    this.cargarProveedores();
   },
   methods: {
-    activarGuardadoNavegacion() {
-      if (this.guardActivo) return;
-      this.guardHandler = (e) => {
-        e.preventDefault();
-        e.returnValue = this.guardMensaje;
-        return this.guardMensaje;
-      };
-      window.addEventListener('beforeunload', this.guardHandler);
-      if (this.$router && this.$options.beforeRouteLeave == null) {
-        this.$options.beforeRouteLeave = (to, from, next) => {
-          if (this.modoEdicion) {
-            if (confirm(this.guardMensaje)) {
-              next();
-            } else {
-              next(false);
-            }
-          } else {
-            next();
-          }
-        };
-        if (this.$router && this.$router.beforeEach) {
-          this.$router.beforeEach(this.$options.beforeRouteLeave);
-        }
-      }
-      this.guardActivo = true;
-    },
-    removerGuardadoNavegacion() {
-      if (this.guardHandler) {
-        window.removeEventListener('beforeunload', this.guardHandler);
-        this.guardHandler = null;
-      }
-      this.guardActivo = false;
-    },
+    async cargarProveedores() {
+  try {
+    const res = await axios.get('http://localhost:8080/proveedores');
+    this.proveedores = res.data.map(p => ({
+      id: p.id,
+      razonSocial: p.razon_social,
+      rfc: p.rfc,
+      domicilioFiscal: p.domicilio_fiscal,
+      domicilioEntrega: p.domicilio_entrega,
+      contacto: {
+        nombre: p.contacto_nombre,
+        email: p.contacto_email,
+        telefono: p.contacto_telefono
+      },
+      condicionesPago: {
+          diasNetos: p.condiciones_pago_dias,
+          descuento: p.condiciones_pago_descuento
+      },
+      moneda: p.moneda,
+      tipoCambio: p.tipo_cambio,
+      cuentaContable: p.cuenta_contable,
+      centroCosto: p.centro_costo,
+      transportista: p.transportista,
+      incoterm: p.incoterm
+    }))
+  } catch (err) {
+    console.error(err)
+    Swal.fire('Error', 'No se pudieron cargar los proveedores', 'error')
+  }
+},
     alternarSeleccion(proveedor) {
       if (this.proveedorSeleccionado && this.proveedorSeleccionado.id === proveedor.id) {
         this.limpiarSeleccion();
@@ -453,14 +452,13 @@ export default {
     async guardarCambios() {
       this.guardBoton = true;
       try {
-        // Simula PUT, reemplaza por tu lógica real
-        await new Promise(r => setTimeout(r, 800));
+        const res = await axios.put('http://localhost:8080/proveedores/' + this.proveedorSeleccionado.id, this.proveedorSeleccionado);
         const idx = this.proveedores.findIndex(p => p.id === this.proveedorSeleccionado.id);
-        if (idx !== -1) {
-          this.proveedores.splice(idx, 1, this.proveedorSeleccionado);
-          Swal.fire('Actualizado', 'Cambios guardados correctamente', 'success');
-          this.limpiarSeleccion();
-        }
+        if (idx !== -1) this.proveedores.splice(idx, 1, res.data);
+        Swal.fire('Actualizado', 'Proveedor actualizado con éxito', 'success');
+        this.limpiarSeleccion();
+      } catch (e) {
+        Swal.fire('Error', 'No se pudo actualizar el proveedor', 'error');
       } finally {
         this.guardBoton = false;
       }
@@ -478,28 +476,16 @@ export default {
           confirmButtonColor: 'var(--rojo)'
         });
         if (res.isConfirmed) {
-          // Simula DELETE, reemplaza por tu lógica real
-          await new Promise(r => setTimeout(r, 800));
+          await axios.delete('http://localhost:8080/proveedores/' + id);
           this.proveedores = this.proveedores.filter(p => p.id !== id);
           Swal.fire('Eliminado', 'Proveedor eliminado', 'success');
-          if (this.proveedorSeleccionado && this.proveedorSeleccionado.id === id) {
-            this.limpiarSeleccion();
-          }
+          if (this.proveedorSeleccionado?.id === id) this.limpiarSeleccion();
         }
+      } catch (e) {
+        Swal.fire('Error', 'No se pudo eliminar el proveedor', 'error');
       } finally {
         this.guardBoton = false;
       }
-    },
-    abrirModalNuevoProveedor() {
-      this.nuevoProveedor = {
-        id: '', razonSocial: '', rfc: '', domicilioFiscal: '', domicilioEntrega: '',
-        contacto: { nombre: '', email: '', telefono: '' },
-        condicionesPago: { diasNetos: 0, descuento: 0 }, moneda: '', tipoCambio: '',
-        cuentaContable: '', centroCosto: '', transportista: '', incoterm: ''
-      };
-      this.v$.$reset();
-      const modal = new window.bootstrap.Modal(document.getElementById('modalNuevoProveedor'));
-      modal.show();
     },
     async guardarProveedor() {
       this.v$.$touch();
@@ -507,25 +493,14 @@ export default {
         Swal.fire('Campos requeridos', 'Por favor corrige los errores del formulario', 'warning');
         return;
       }
-      // Validación básica extra
-      if (!this.nuevoProveedor.id || !this.nuevoProveedor.razonSocial || !this.nuevoProveedor.rfc || !this.nuevoProveedor.domicilioFiscal || !this.nuevoProveedor.domicilioEntrega || !this.nuevoProveedor.contacto.nombre || !this.nuevoProveedor.contacto.email || !this.nuevoProveedor.contacto.telefono || !this.nuevoProveedor.condicionesPago.diasNetos || !this.nuevoProveedor.moneda || !this.nuevoProveedor.cuentaContable || !this.nuevoProveedor.centroCosto) {
-        Swal.fire('Campos requeridos', 'Por favor llena todos los campos obligatorios', 'warning');
-        return;
-      }
       try {
-        const response = await fetch('/api/proveedores', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.nuevoProveedor)
-        });
-        if (!response.ok) throw new Error('Error al guardar proveedor');
-        const proveedorGuardado = await response.json();
-        this.proveedores.push(proveedorGuardado);
+        const res = await axios.post('http://localhost:8080/proveedores', this.nuevoProveedor);
+        this.proveedores.push(res.data);
         Swal.fire('¡Guardado!', 'Proveedor registrado correctamente', 'success');
         const modal = window.bootstrap.Modal.getInstance(document.getElementById('modalNuevoProveedor'));
         if (modal) modal.hide();
       } catch (e) {
-        Swal.fire('Error', 'No se pudo guardar el proveedor', 'error');
+        Swal.fire('Error', 'No se pudo registrar el proveedor', 'error');
       }
     },
     exportarExcel() {
@@ -554,6 +529,7 @@ export default {
     }
   }
 };
+
 </script>
 
 <style scoped>
@@ -567,6 +543,10 @@ export default {
   --color-texto: #2b2b2b;
   --color-blanco: #ffffff;
   --color-negro: #000000;
+}
+
+.container {
+  font-family: 'Nunito Sans', sans-serif;
 }
 
 .dashboard-contenedor {

@@ -1,5 +1,10 @@
 <template>
   <Navbar />
+      <!-- ENCABEZADO -->
+    <div class="container">
+      <h2 class="mb-1">Inventario</h2>
+      <p class="text">Control y gestión de productos en inventario.</p>
+    </div>
   <div class="dashboard-contenedor">
     <div class="contenido">
       <!-- Card contenedor -->
@@ -117,6 +122,7 @@
 import Navbar from '../components/Navbar.vue';
 import DOMPurify from 'dompurify';
 import Swal from 'sweetalert2';
+import axios from 'axios';
 
 export default {
   name: 'InventarioProductos',
@@ -142,11 +148,13 @@ export default {
       if (this.productoSeleccionado) return [this.productoSeleccionado];
       const termino = DOMPurify.sanitize(this.busqueda).toLowerCase().trim();
       if (!termino) return this.productos;
-      return this.productos.filter(p => Object.values(p).some(val => {
-        if (typeof val === 'string') return val.toLowerCase().includes(termino);
-        if (typeof val === 'number') return val.toString().includes(termino);
-        return false;
-      }));
+      return this.productos.filter(p =>
+        Object.values(p).some(val => {
+          if (typeof val === 'string') return val.toLowerCase().includes(termino);
+          if (typeof val === 'number') return val.toString().includes(termino);
+          return false;
+        })
+      );
     },
     productosPaginados() {
       const start = (this.paginaActual - 1) * this.productosPorPagina;
@@ -171,12 +179,15 @@ export default {
       this.productoSeleccionado = null;
       this.paginaActual = this.paginaAnterior;
     },
-    guardarCambios() {
-      const idx = this.productos.findIndex(p => p.id === this.productoSeleccionado.id);
-      if (idx !== -1) {
-        this.productos.splice(idx, 1, this.productoSeleccionado);
+    async guardarCambios() {
+      try {
+        const res = await axios.put(`http://localhost:8080/productos/${this.productoSeleccionado.id}`, this.productoSeleccionado);
         Swal.fire('Actualizado', 'Cambios guardados correctamente', 'success');
+        this.cargarProductos(); // recarga toda la lista
         this.limpiarSeleccion();
+      } catch (error) {
+        console.error(error);
+        Swal.fire('Error', 'No se pudieron guardar los cambios', 'error');
       }
     },
     eliminarProducto(id) {
@@ -188,12 +199,18 @@ export default {
         confirmButtonText: 'Sí, eliminar',
         cancelButtonText: 'Cancelar',
         confirmButtonColor: 'var(--rojo)'
-      }).then(res => {
+      }).then(async res => {
         if (res.isConfirmed) {
-          this.productos = this.productos.filter(p => p.id !== id);
-          Swal.fire('Eliminado', 'Producto eliminado', 'success');
-          if (this.productoSeleccionado && this.productoSeleccionado.id === id) {
-            this.limpiarSeleccion();
+          try {
+            await axios.delete(`http://localhost:8080/productos/${id}`);
+            Swal.fire('Eliminado', 'Producto eliminado correctamente', 'success');
+            this.cargarProductos(); // actualiza la lista
+            if (this.productoSeleccionado && this.productoSeleccionado.id === id) {
+              this.limpiarSeleccion();
+            }
+          } catch (error) {
+            console.error(error);
+            Swal.fire('Error', 'No se pudo eliminar el producto', 'error');
           }
         }
       });
@@ -204,24 +221,24 @@ export default {
         const nuevoStock = this.productos[idx].stock + cantidad;
         if (nuevoStock >= 0) this.productos[idx].stock = nuevoStock;
       }
+    },
+    async cargarProductos() {
+      try {
+        const res = await axios.get('http://localhost:8080/productos');
+        this.productos = res.data;
+      } catch (err) {
+        console.error(err);
+        Swal.fire('Error', 'No se pudieron cargar los productos', 'error');
+      }
     }
   },
   mounted() {
-    this.productos = [
-      { id: 1, sku: 'VET001', nombre: 'Alimento para perro adulto', categoria: 'Alimentos', precio: 650, stock: 25, descripcion: 'Alimento balanceado para perros adultos de todas las razas.' },
-      { id: 2, sku: 'VET002', nombre: 'Alimento para gato esterilizado', categoria: 'Alimentos', precio: 720, stock: 18, descripcion: 'Alimento premium para gatos esterilizados, bajo en calorías.' },
-      { id: 3, sku: 'VET003', nombre: 'Juguete mordedera para perro', categoria: 'Juguetes', precio: 120, stock: 40, descripcion: 'Juguete resistente para la limpieza dental de perros.' },
-      { id: 4, sku: 'VET004', nombre: 'Rascador para gato', categoria: 'Accesorios', precio: 350, stock: 12, descripcion: 'Rascador de sisal para gatos, ayuda a mantener sus uñas sanas.' },
-      { id: 5, sku: 'VET005', nombre: 'Shampoo antipulgas', categoria: 'Higiene', precio: 180, stock: 30, descripcion: 'Shampoo especial para eliminar pulgas y garrapatas.' },
-      { id: 6, sku: 'VET006', nombre: 'Collar isabelino', categoria: 'Accesorios', precio: 95, stock: 22, descripcion: 'Collar protector para evitar que las mascotas se laman heridas.' },
-      { id: 7, sku: 'VET007', nombre: 'Pipeta antiparasitaria', categoria: 'Medicamentos', precio: 210, stock: 15, descripcion: 'Pipeta para el control de parásitos externos en perros y gatos.' },
-      { id: 8, sku: 'VET008', nombre: 'Cama ortopédica para perro', categoria: 'Accesorios', precio: 890, stock: 8, descripcion: 'Cama ergonómica para perros con problemas articulares.' },
-      { id: 9, sku: 'VET009', nombre: 'Transportadora pequeña', categoria: 'Accesorios', precio: 540, stock: 10, descripcion: 'Transportadora plástica para mascotas pequeñas.' },
-      { id: 10, sku: 'VET010', nombre: 'Cepillo desenredante', categoria: 'Higiene', precio: 75, stock: 35, descripcion: 'Cepillo para desenredar y eliminar pelo muerto en mascotas.' }
-    ];
+    this.cargarProductos();
   }
 };
 </script>
+
+
 
 <style scoped>
 :root {
@@ -432,6 +449,10 @@ export default {
   text-align: center;
   color: #666;
   padding: 2rem;
+}
+
+.container {
+  font-family: 'Nunito Sans', sans-serif;
 }
 
 @keyframes fadeInTable {
