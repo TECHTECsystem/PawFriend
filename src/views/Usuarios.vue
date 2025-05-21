@@ -1,6 +1,10 @@
 <template>
   <Navbar />
-  <div class="container mt-4">
+      <div class="container enca">
+      <h2 class="mb-1">Usuarios</h2>
+      <p class="text">Control y gestión de trabajadores en el sistema.</p>
+    </div>
+  <div class="contenedor mt-4">
     <div v-if="cargandoInicial" class="d-flex justify-content-center align-items-center" style="height:200px;">
       <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div>
     </div>
@@ -154,6 +158,7 @@
 import Navbar from '../components/Navbar.vue';
 import Swal from 'sweetalert2';
 import * as Papa from 'papaparse';
+import axios from 'axios';
 
 export default {
   name: 'UsuariosView',
@@ -162,43 +167,13 @@ export default {
     return {
       usuarioActual: { rol: 'admin' },
       cargandoInicial: true,
-      usuarios: [
-        {
-          id: 1,
-          nombre: 'Juan Pérez',
-          email: 'juan.perez@email.com',
-          username: 'juanperez1',
-          password: '********',
-          permisos: ['ventas', 'productos'],
-          activo: true,
-          ultimoAcceso: '2025-05-18 10:23'
-        },
-        {
-          id: 2,
-          nombre: 'Ana López',
-          email: 'ana.lopez@email.com',
-          username: 'analopez2',
-          password: '********',
-          permisos: ['clientes', 'usuarios'],
-          activo: false,
-          ultimoAcceso: '2025-05-17 09:10'
-        },
-        {
-          id: 3,
-          nombre: 'Carlos Ruiz',
-          email: 'carlos.ruiz@email.com',
-          username: 'carlosruiz3',
-          password: '********',
-          permisos: ['proveedores', 'servicios', 'productos'],
-          activo: true,
-          ultimoAcceso: '2025-05-19 08:00'
-        }
-      ],
+      usuarios: [], // Se cargan desde la API
       usuarioSeleccionado: null,
       modoEdicion: false,
       mostrarModal: false,
       usuarioForm: {
-        id: '', nombre: '', email: '', username: '', password: '', permisos: [], activo: true, ultimoAcceso: ''
+        id: '', nombre: '', email: '', username: '', password: '',
+        permisos: [], activo: true, ultimoAcceso: ''
       },
       permisosDisponibles: [
         { id: 'ventas', descripcion: 'Gestión de ventas' },
@@ -259,150 +234,190 @@ export default {
       );
     },
     emailValido() {
-      // Simple regex para validar email
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.usuarioForm.email);
     }
   },
   mounted() {
-    setTimeout(() => {
-      this.cargandoInicial = false;
-    }, 300);
+    this.cargarUsuarios();
   },
   methods: {
-    abrirModalNuevo() {
-      this.usuarioForm = { id: '', nombre: '', email: '', username: '', password: '', permisos: [], activo: true, ultimoAcceso: '' };
-      this.modoEdicion = false;
-      this.submitted = false;
-      this.generarCredenciales();
-      this.$nextTick(() => {
-        const modal = new window.bootstrap.Modal(document.getElementById('modalUsuario'));
-        modal.show();
-      });
-    },
-    cerrarModal() {
-      const modal = window.bootstrap.Modal.getInstance(document.getElementById('modalUsuario'));
-      if (modal) modal.hide();
-      this.usuarioSeleccionado = null;
-      this.submitted = false;
-    },
-    generarCredenciales() {
-      const base = (this.usuarioForm.nombre || 'usuario').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const random = Math.floor(Math.random() * 10000);
-      this.usuarioForm.username = base.substring(0, 8) + random;
-      this.usuarioForm.password = Array(10).fill(0).map(() => String.fromCharCode(97 + Math.floor(Math.random() * 26))).join('');
-    },
-    async guardarUsuario() {
-      this.submitted = true;
-      if (!this.puedeGuardar) return;
-      this.cargando = true;
-      try {
-        const fecha = new Date();
-        const fechaStr = fecha.getFullYear() + '-' + String(fecha.getMonth()+1).padStart(2,'0') + '-' + String(fecha.getDate()).padStart(2,'0') + ' ' + String(fecha.getHours()).padStart(2,'0') + ':' + String(fecha.getMinutes()).padStart(2,'0');
-        this.usuarioForm.ultimoAcceso = fechaStr;
-        if (this.modoEdicion) {
-          const idx = this.usuarios.findIndex(u => u.id === this.usuarioForm.id);
-          if (idx !== -1) {
-            this.usuarios.splice(idx, 1, { ...this.usuarioForm });
-          }
-        } else {
-          const nuevoId = this.usuarios.length ? Math.max(...this.usuarios.map(u => u.id)) + 1 : 1;
-          this.usuarios.push({ ...this.usuarioForm, id: nuevoId });
-        }
-        Swal.fire('¡Guardado!', 'Usuario guardado correctamente', 'success');
-        this.cerrarModal();
-      } catch (e) {
-        Swal.fire('Error', 'No se pudo guardar el usuario', 'error');
-      } finally {
-        this.cargando = false;
-      }
-    },
-    editarUsuario(usuario) {
-      this.usuarioForm = { ...usuario, permisos: [...(usuario.permisos || [])] };
-      this.modoEdicion = true;
-      this.submitted = false;
-      this.$nextTick(() => {
-        const modal = new window.bootstrap.Modal(document.getElementById('modalUsuario'));
-        modal.show();
-      });
-    },
-    async eliminarUsuario(usuario) {
-      const confirm = await Swal.fire({
-        title: '¿Eliminar usuario?',
-        text: 'No podrás revertir esto',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: 'var(--rojo)'
-      });
-      if (!confirm.isConfirmed) return;
-      this.cargando = true;
-      this.usuarioSeleccionado = usuario;
-      try {
-        this.usuarios = this.usuarios.filter(u => u.id !== usuario.id);
-        Swal.fire('Eliminado', 'Usuario eliminado', 'success');
-        this.cerrarModal();
-      } catch (e) {
-        Swal.fire('Error', 'No se pudo eliminar el usuario', 'error');
-      } finally {
-        this.cargando = false;
-        this.usuarioSeleccionado = null;
-      }
-    },
-    toggleSeleccionarTodo() {
-      if (this.todosSeleccionados) {
-        this.usuarioForm.permisos = [];
-      } else {
-        this.usuarioForm.permisos = this.permisosDisponibles.map(p => p.id);
-      }
-    },
-    enviarCredenciales() {
-      Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'info',
-        title: 'Credenciales enviadas (simulado)',
-        showConfirmButton: false,
-        timer: 2000
-      });
-    },
-    exportarCSV() {
-      const encabezados = ['id','nombre','email','username','password','permisos','activo','ultimoAcceso'];
-      const rows = this.usuarios.map(u => encabezados.map(h => Array.isArray(u[h]) ? u[h].join('|') : u[h] ?? '').join(','));
-      const csv = [encabezados.join(','), ...rows].join('\r\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'usuarios.csv';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    },
-    importarCSV(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          this.usuarios = results.data.map((row, i) => ({
-            id: row.id || i+1,
-            nombre: row.nombre || '',
-            email: row.email || '',
-            username: row.username || '',
-            password: row.password || '',
-            permisos: row.permisos ? row.permisos.split('|') : [],
-            activo: row.activo === 'true' || row.activo === true,
-            ultimoAcceso: row.ultimoAcceso || ''
-          }));
-          Swal.fire('¡Importado!', 'Usuarios importados correctamente', 'success');
-          this.$refs.inputCSV.value = '';
-        }
-      });
+    async cargarUsuarios() {
+    try {
+      const res = await axios.get('http://localhost:8080/usuarios');
+      this.usuarios = res.data.map(usuario => ({
+        ...usuario,
+        permisos: this.obtenerPermisosDesdeRol(usuario.rol)
+      }));
+    } catch (err) {
+      console.error('Error al cargar usuarios:', err);
+      Swal.fire('Error', 'No se pudieron cargar los usuarios', 'error');
+    } finally {
+      this.cargandoInicial = false;
     }
+  },
+  obtenerPermisosDesdeRol(rol) {
+    if (rol === 'administrador') {
+      return this.permisosDisponibles.map(p => p.id);
+    } else if (rol === 'empleado') {
+      return ['ventas', 'productos', 'clientes'];
+    }
+    return [];
+  },
+  abrirModalNuevo() {
+    this.usuarioForm = {
+      id: '', nombre: '', email: '', username: '',
+      password: '', permisos: [], activo: true, ultimoAcceso: ''
+    };
+    this.modoEdicion = false;
+    this.submitted = false;
+    this.generarCredenciales();
+    this.$nextTick(() => {
+      const modal = new window.bootstrap.Modal(document.getElementById('modalUsuario'));
+      modal.show();
+    });
+  },
+  cerrarModal() {
+    const modal = window.bootstrap.Modal.getInstance(document.getElementById('modalUsuario'));
+    if (modal) modal.hide();
+    this.usuarioSeleccionado = null;
+    this.submitted = false;
+  },
+  generarCredenciales() {
+    const base = (this.usuarioForm.nombre || 'usuario').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const random = Math.floor(Math.random() * 10000);
+    this.usuarioForm.username = base.substring(0, 8) + random;
+    this.usuarioForm.password = Array(10).fill(0).map(() => String.fromCharCode(97 + Math.floor(Math.random() * 26))).join('');
+  },
+  async guardarUsuario() {
+    this.submitted = true;
+    if (!this.puedeGuardar) return;
+    this.cargando = true;
+    try {
+      const fecha = new Date();
+      const fechaStr = fecha.getFullYear() + '-' + String(fecha.getMonth()+1).padStart(2,'0') + '-' + String(fecha.getDate()).padStart(2,'0') + ' ' + String(fecha.getHours()).padStart(2,'0') + ':' + String(fecha.getMinutes()).padStart(2,'0');
+      this.usuarioForm.ultimoAcceso = fechaStr;
+
+      if (this.modoEdicion) {
+        await axios.put(`http://localhost:8080/usuarios/${this.usuarioForm.id}`, {
+          nombre: this.usuarioForm.nombre,
+          email: this.usuarioForm.email,
+          username: this.usuarioForm.username,
+          password: this.usuarioForm.password,
+          rol: 'empleado',
+          activo: this.usuarioForm.activo ? 1 : 0,
+          ultimo_acceso: this.usuarioForm.ultimoAcceso
+        });
+      } else {
+        const res = await axios.post('http://localhost:8080/usuarios', {
+          nombre: this.usuarioForm.nombre,
+          email: this.usuarioForm.email,
+          username: this.usuarioForm.username,
+          password: this.usuarioForm.password,
+          rol: 'empleado',
+          activo: this.usuarioForm.activo ? 1 : 0,
+          ultimo_acceso: this.usuarioForm.ultimoAcceso
+        });
+        this.usuarioForm.id = res.data.usuario.id ?? Date.now();
+      }
+
+      await this.cargarUsuarios();
+      Swal.fire('¡Guardado!', 'Usuario guardado correctamente', 'success');
+      this.cerrarModal();
+    } catch (e) {
+      console.error(e);
+      Swal.fire('Error', 'No se pudo guardar el usuario', 'error');
+    } finally {
+      this.cargando = false;
+    }
+  },
+  editarUsuario(usuario) {
+    this.usuarioForm = { ...usuario, permisos: [...(usuario.permisos || [])] };
+    this.modoEdicion = true;
+    this.submitted = false;
+    this.$nextTick(() => {
+      const modal = new window.bootstrap.Modal(document.getElementById('modalUsuario'));
+      modal.show();
+    });
+  },
+  async eliminarUsuario(usuario) {
+    const confirm = await Swal.fire({
+      title: '¿Eliminar usuario?',
+      text: 'No podrás revertir esto',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: 'var(--rojo)'
+    });
+    if (!confirm.isConfirmed) return;
+    this.cargando = true;
+    this.usuarioSeleccionado = usuario;
+    try {
+      await axios.delete(`http://localhost:8080/usuarios/${usuario.id}`);
+      await this.cargarUsuarios();
+      Swal.fire('Eliminado', 'Usuario eliminado', 'success');
+    } catch (e) {
+      console.error(e);
+      Swal.fire('Error', 'No se pudo eliminar el usuario', 'error');
+    } finally {
+      this.cargando = false;
+      this.usuarioSeleccionado = null;
+    }
+  },
+  toggleSeleccionarTodo() {
+    if (this.todosSeleccionados) {
+      this.usuarioForm.permisos = [];
+    } else {
+      this.usuarioForm.permisos = this.permisosDisponibles.map(p => p.id);
+    }
+  },
+  enviarCredenciales() {
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'info',
+      title: 'Credenciales enviadas (simulado)',
+      showConfirmButton: false,
+      timer: 2000
+    });
+  },
+  exportarCSV() {
+    const encabezados = ['id','nombre','email','username','password','permisos','activo','ultimoAcceso'];
+    const rows = this.usuarios.map(u => encabezados.map(h => Array.isArray(u[h]) ? u[h].join('|') : u[h] ?? '').join(','));
+    const csv = [encabezados.join(','), ...rows].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'usuarios.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+  importarCSV(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        this.usuarios = results.data.map((row, i) => ({
+          id: row.id || i+1,
+          nombre: row.nombre || '',
+          email: row.email || '',
+          username: row.username || '',
+          password: row.password || '',
+          permisos: row.permisos ? row.permisos.split('|') : [],
+          activo: row.activo === 'true' || row.activo === true,
+          ultimoAcceso: row.ultimoAcceso || ''
+        }));
+        Swal.fire('¡Importado!', 'Usuarios importados correctamente', 'success');
+        this.$refs.inputCSV.value = '';
+      }
+    });
   }
+}
 };
 </script>
 
@@ -418,11 +433,15 @@ export default {
   --color-error: #b00020;
 }
 
-.container {
+.contenedor {
   background-color: var(--color-blanco);
   border-radius: 12px;
   padding: 1.5rem;
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.container.enca {
+  font-family: 'Nunito Sans', sans-serif;
 }
 
 .card.tabla-usuarios {

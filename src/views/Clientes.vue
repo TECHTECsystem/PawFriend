@@ -1,9 +1,15 @@
 <template>
   <Navbar />
+        <!-- ENCABEZADO -->
+    <div class="container">
+      <h2 class="mb-1">Clientes</h2>
+      <p class="text">Control y gestión de clientes.</p>
+    </div>
   <div class="dashboard-contenedor">
     <div class="contenido">
       <div class="card tabla-contenedor">
         <div class="card-header">
+
           <input
             v-model="busqueda"
             type="text"
@@ -119,6 +125,7 @@
 <script>
 import Navbar from '../components/Navbar.vue';
 import Swal from 'sweetalert2';
+import axios from 'axios';
 
 export default {
   name: 'ClientesView',
@@ -126,16 +133,7 @@ export default {
   data() {
     return {
       busqueda: '',
-      clientes: [
-        {id: 1, nombre: 'Juan Pérez', telefono: '5551234567', correo: 'juan.perez@example.com', mascota: { nombre: 'Firulais', edad: 3, unidad: 'años', raza: 'Labrador'}},
-        {id: 2, nombre: 'María López', telefono: '5559876543', correo: 'ejemplo@ejemplo.com', mascota: { nombre: 'Miau', edad: 2, unidad: 'años', raza: 'Siames'}},
-        {id: 3, nombre: 'Carlos García', telefono: '5554567890', correo: 'a@a .com', mascota: { nombre: 'Bobby', edad: 1, unidad: 'años', raza: 'Bulldog'}},
-        {id: 4, nombre: 'Ana Martínez', telefono: '5553216549', correo: 'a@a .com', mascota: { nombre: 'Luna', edad: 4, unidad: 'años', raza: 'Poodle'}},
-        {id: 5, nombre: 'Luis Ramírez', telefono: '5556543210', correo: 'a@a .com', mascota: { nombre: 'Rocky', edad: 5, unidad: 'años', raza: 'Pitbull'}},
-        {id: 6, nombre: 'Sofía Torres', telefono: '5557890123', correo: 'a@a .com', mascota: { nombre: 'Coco', edad: 6, unidad: 'años', raza: 'Chihuahua'}},
-        {id: 7, nombre: 'Diego Fernández', telefono: '5552345678', correo: 'a@a .com', mascota: { nombre: 'Max', edad: 7, unidad: 'años', raza: 'Beagle'}},
-        {id: 8, nombre: 'Laura Jiménez', telefono: '5558765432', correo: 'a@a .com', mascota: { nombre: 'Bella', edad: 8, unidad: 'años', raza: 'Bulldog'}},
-      ],
+      clientes: [],
       clienteSeleccionado: null,
       modoEdicion: false,
       paginaActual: 1,
@@ -150,12 +148,12 @@ export default {
       return this.clientes.filter(c => {
         return (
           c.nombre.toLowerCase().includes(filtro) ||
-          c.telefono.toLowerCase().includes(filtro) ||
+          (c.telefono && c.telefono.toLowerCase().includes(filtro)) ||
           (c.correo && c.correo.toLowerCase().includes(filtro)) ||
-          (c.mascota.nombre && c.mascota.nombre.toLowerCase().includes(filtro)) ||
-          (c.mascota.raza && c.mascota.raza.toLowerCase().includes(filtro)) ||
-          (c.mascota.edad && c.mascota.edad.toString().includes(filtro)) ||
-          (c.mascota.unidad && c.mascota.unidad.toLowerCase().includes(filtro))
+          (c.mascota?.nombre && c.mascota.nombre.toLowerCase().includes(filtro)) ||
+          (c.mascota?.raza && c.mascota.raza.toLowerCase().includes(filtro)) ||
+          (c.mascota?.edad && c.mascota.edad.toString().includes(filtro)) ||
+          (c.mascota?.unidad && c.mascota.unidad.toLowerCase().includes(filtro))
         );
       });
     },
@@ -182,12 +180,48 @@ export default {
       this.clienteSeleccionado = null;
       this.paginaActual = this.paginaAnterior;
     },
-    guardarCambios() {
-      const idx = this.clientes.findIndex(c => c.id === this.clienteSeleccionado.id);
-      if (idx !== -1) {
-        this.clientes.splice(idx, 1, this.clienteSeleccionado);
+    async cargarClientes() {
+      try {
+        const res = await axios.get('http://localhost:8080/clientes');
+        this.clientes = res.data.map(c => ({
+          id: c.id,
+          nombre: c.nombre,
+          telefono: c.telefono,
+          correo: c.correo,
+          mascota: {
+            nombre: c.mascota_nombre || '-',
+            edad: c.mascota_edad ?? '-',
+            unidad: c.mascota_unidad || '-',
+            raza: c.mascota_raza || '-'
+          }
+        }));
+      } catch (err) {
+        console.error(err);
+        Swal.fire('Error', 'No se pudieron cargar los clientes', 'error');
+      }
+    },
+    async guardarCambios() {
+      if (!this.clienteSeleccionado) return;
+
+      try {
+        const res = await axios.put(`http://localhost:8080/clientes/${this.clienteSeleccionado.id}`, {
+          nombre: this.clienteSeleccionado.nombre,
+          telefono: this.clienteSeleccionado.telefono,
+          correo: this.clienteSeleccionado.correo,
+          mascota: {
+            nombre: this.clienteSeleccionado.mascota?.nombre || null,
+            edad: this.clienteSeleccionado.mascota?.edad || null,
+            unidad: this.clienteSeleccionado.mascota?.unidad || null,
+            raza: this.clienteSeleccionado.mascota?.raza || null
+          }
+        });
+
+        await this.cargarClientes();
         Swal.fire('Actualizado', 'Cambios guardados correctamente', 'success');
         this.limpiarSeleccion();
+      } catch (err) {
+        console.error(err);
+        Swal.fire('Error', 'No se pudo actualizar el cliente', 'error');
       }
     },
     eliminarCliente(id) {
@@ -209,15 +243,29 @@ export default {
         }
       });
     }
+  },
+  mounted() {
+    this.cargarClientes();
   }
 };
 </script>
+
+
 
 <style scoped>
 :root {
   --primario: #7c245c;
   --claro: #f4f4f9;
   --gris-claro: #e9e9e9;
+    --color-primario: #7c245c;
+  --color-secundario: #cc8bab;
+  --color-acento: #7c1454;
+  --color-suave: #a45484;
+  --color-claro: #cc94ac;
+  --color-fondo: #fdfbfc;
+  --color-texto: #2b2b2b;
+  --color-blanco: #ffffff;
+  --color-negro: #000000;
 }
 .dashboard-contenedor {
   display: flex;
@@ -413,6 +461,9 @@ export default {
 .fade-slide-enter-to, .fade-slide-leave-from {
   opacity: 1;
   transform: translateY(0);
+}
+.container {
+  font-family: 'Nunito Sans', sans-serif;
 }
 @keyframes fadeInTable {
   from { opacity: 0; transform: translateY(20px); }

@@ -1,5 +1,10 @@
 <template>
   <Navbar />
+        <!-- ENCABEZADO -->
+    <div class="container">
+      <h2 class="mb-1">Servicios</h2>
+      <p class="text">Control y gestión de servicios ofrecidos.</p>
+    </div>
   <div class="dashboard-contenedor">
     <div class="contenido">
       <!-- Card contenedor -->
@@ -107,6 +112,7 @@
 import Navbar from '../components/Navbar.vue';
 import DOMPurify from 'dompurify';
 import Swal from 'sweetalert2';
+import axios from 'axios';
 
 export default {
   name: 'ServiciosView',
@@ -114,18 +120,7 @@ export default {
   data() {
     return {
       busqueda: '',
-      servicios: [
-        { id: 1, clave: 'SRV001', nombre: 'Consulta general', categoria: 'Consulta', precio: 350, descripcion: 'Atención médica general para mascotas.' },
-        { id: 2, clave: 'SRV002', nombre: 'Vacunación', categoria: 'Prevención', precio: 250, descripcion: 'Aplicación de vacunas para perros y gatos.' },
-        { id: 3, clave: 'SRV003', nombre: 'Desparasitación', categoria: 'Prevención', precio: 180, descripcion: 'Desparasitación interna y externa.' },
-        { id: 4, clave: 'SRV004', nombre: 'Cirugía menor', categoria: 'Cirugía', precio: 1200, descripcion: 'Procedimientos quirúrgicos menores.' },
-        { id: 5, clave: 'SRV005', nombre: 'Esterilización', categoria: 'Cirugía', precio: 950, descripcion: 'Esterilización de perros y gatos.' },
-        { id: 6, clave: 'SRV006', nombre: 'Limpieza dental', categoria: 'Higiene', precio: 600, descripcion: 'Limpieza dental profesional para mascotas.' },
-        { id: 7, clave: 'SRV007', nombre: 'Rayos X', categoria: 'Diagnóstico', precio: 700, descripcion: 'Estudios radiográficos veterinarios.' },
-        { id: 8, clave: 'SRV008', nombre: 'Ultrasonido', categoria: 'Diagnóstico', precio: 850, descripcion: 'Ultrasonido abdominal y diagnóstico.' },
-        { id: 9, clave: 'SRV009', nombre: 'Baño y corte', categoria: 'Estética', precio: 300, descripcion: 'Baño y corte de pelo para mascotas.' },
-        { id: 10, clave: 'SRV010', nombre: 'Guardería', categoria: 'Cuidado', precio: 400, descripcion: 'Cuidado temporal de mascotas.' }
-      ],
+      servicios: [],
       servicioSeleccionado: null,
       modoEdicion: false,
       paginaActual: 1,
@@ -143,11 +138,13 @@ export default {
       if (this.servicioSeleccionado) return [this.servicioSeleccionado];
       const termino = DOMPurify.sanitize(this.busqueda).toLowerCase().trim();
       if (!termino) return this.servicios;
-      return this.servicios.filter(s => Object.values(s).some(val => {
-        if (typeof val === 'string') return val.toLowerCase().includes(termino);
-        if (typeof val === 'number') return val.toString().includes(termino);
-        return false;
-      }));
+      return this.servicios.filter(s =>
+        Object.values(s).some(val => {
+          if (typeof val === 'string') return val.toLowerCase().includes(termino);
+          if (typeof val === 'number') return val.toString().includes(termino);
+          return false;
+        })
+      );
     },
     serviciosPaginados() {
       const start = (this.paginaActual - 1) * this.serviciosPorPagina;
@@ -172,12 +169,31 @@ export default {
       this.servicioSeleccionado = null;
       this.paginaActual = this.paginaAnterior;
     },
-    guardarCambios() {
-      const idx = this.servicios.findIndex(s => s.id === this.servicioSeleccionado.id);
-      if (idx !== -1) {
-        this.servicios.splice(idx, 1, this.servicioSeleccionado);
+    async cargarServicios() {
+      try {
+        const res = await axios.get('http://localhost:8080/servicios');
+        this.servicios = res.data;
+      } catch (error) {
+        console.error(error);
+        Swal.fire('Error', 'No se pudieron cargar los servicios', 'error');
+      }
+    },
+    async guardarCambios() {
+      if (!this.servicioSeleccionado) return;
+
+      try {
+        await axios.put(`http://localhost:8080/servicios/${this.servicioSeleccionado.id}`, this.servicioSeleccionado);
+
+        const idx = this.servicios.findIndex(s => s.id === this.servicioSeleccionado.id);
+        if (idx !== -1) {
+          this.servicios.splice(idx, 1, { ...this.servicioSeleccionado });
+        }
+
         Swal.fire('Actualizado', 'Cambios guardados correctamente', 'success');
         this.limpiarSeleccion();
+      } catch (err) {
+        console.error(err);
+        Swal.fire('Error', 'No se pudo actualizar el servicio', 'error');
       }
     },
     eliminarServicio(id) {
@@ -189,19 +205,27 @@ export default {
         confirmButtonText: 'Sí, eliminar',
         cancelButtonText: 'Cancelar',
         confirmButtonColor: 'var(--rojo)'
-      }).then(res => {
+      }).then(async res => {
         if (res.isConfirmed) {
-          this.servicios = this.servicios.filter(s => s.id !== id);
-          Swal.fire('Eliminado', 'Servicio eliminado', 'success');
-          if (this.servicioSeleccionado && this.servicioSeleccionado.id === id) {
-            this.limpiarSeleccion();
+          try {
+            await axios.delete(`http://localhost:8080/servicios/${id}`);
+            this.servicios = this.servicios.filter(s => s.id !== id);
+            Swal.fire('Eliminado', 'Servicio eliminado', 'success');
+            if (this.servicioSeleccionado?.id === id) this.limpiarSeleccion();
+          } catch (err) {
+            console.error(err);
+            Swal.fire('Error', 'No se pudo eliminar el servicio', 'error');
           }
         }
       });
     }
+  },
+  mounted() {
+    this.cargarServicios();
   }
 };
 </script>
+
 
 <style scoped>
 :root {
@@ -214,6 +238,10 @@ export default {
   --color-texto: #2b2b2b;
   --color-blanco: #ffffff;
   --color-negro: #000000;
+}
+
+.container {
+  font-family: 'Nunito Sans', sans-serif;
 }
 
 .dashboard-contenedor {

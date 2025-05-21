@@ -142,35 +142,107 @@
 
       <!-- RESUMEN -->
       <div class="col-md-4">
-        <div class="card h-100 shadow-sm rounded-3 resumen-card">
-          <div class="card-body">
-            <h5 class="card-title text-primary fw-semibold">Resumen</h5>
+  <div class="card h-100 shadow-sm rounded-3 resumen-card">
+    <div class="card-body">
+      <h5 class="card-title text-primary fw-semibold">Resumen</h5>
 
-            <div class="mb-2">
-              <label class="form-label">Cliente:</label>
-              <input v-model="cliente" type="text" class="form-control" placeholder="Cliente general" />
+      <!-- Sección Cliente -->
+      <div class="accordion mb-3" id="accordionResumen">
+        <div class="accordion-item">
+          <h6 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#clienteCollapse">
+              Datos del cliente
+            </button>
+          </h6>
+          <div id="clienteCollapse" class="accordion-collapse collapse" data-bs-parent="#accordionResumen">
+            <div class="accordion-body">
+              <div class="mb-2">
+                <label class="form-label">Nombre del cliente:</label>
+                <input v-model="cliente" type="text" class="form-control" placeholder="Obligatorio" />
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Teléfono:</label>
+                <input v-model="clienteTelefono" type="tel" class="form-control" placeholder="Opcional" />
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Email:</label>
+                <input v-model="clienteEmail" type="email" class="form-control" placeholder="Opcional" />
+              </div>
             </div>
-            <div class="mb-2">
-              <label class="form-label">Observaciones:</label>
-              <input v-model="observaciones" type="text" class="form-control" />
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Método de pago:</label>
-              <select v-model="metodoPago" class="form-select">
-                <option value="efectivo">Efectivo</option>
-                <option value="tarjeta">Tarjeta</option>
-                <option value="transferencia">Transferencia</option>
-                <option value="mixto">Mixto</option>
-              </select>
-            </div>
+          </div>
+        </div>
 
-            <hr />
-            <p><strong>Subtotal:</strong> <span class="text-secondary">${{ subtotal }}</span></p>
-            <p><strong>Descuento total:</strong> <span class="text-secondary">${{ descuentoTotal }}</span></p>
-            <h5><strong>Total a pagar:</strong> <span class="text-success">${{ total }}</span></h5>
+        <!-- Sección Mascota -->
+        <div v-if="hayServicioEnTicket" class="accordion-item">
+          <h6 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#mascotaCollapse">
+              Datos de la mascota
+            </button>
+          </h6>
+          <div id="mascotaCollapse" class="accordion-collapse collapse" data-bs-parent="#accordionResumen">
+            <div class="accordion-body">
+              <div class="mb-2">
+                <label class="form-label">Nombre de la mascota:</label>
+                <input v-model="mascotaNombre" type="text" class="form-control" placeholder="Ej. Luna" />
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Edad:</label>
+                <div class="input-group">
+                  <input v-model.number="mascotaEdad" type="number" min="0" class="form-control" />
+                  <select v-model="mascotaUnidadEdad" class="form-select">
+                    <option value="meses">Meses</option>
+                    <option value="años">Años</option>
+                  </select>
+                </div>
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Especie:</label>
+                <input v-model="mascotaEspecie" type="text" class="form-control" placeholder="Ej. perro, gato..." />
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Raza:</label>
+                <input v-model="mascotaRaza" type="text" class="form-control" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sección Venta -->
+        <div class="accordion-item">
+          <h6 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#ventaCollapse">
+              Detalles de la venta
+            </button>
+          </h6>
+          <div id="ventaCollapse" class="accordion-collapse collapse" data-bs-parent="#accordionResumen">
+            <div class="accordion-body">
+              <div class="mb-2">
+                <label class="form-label">Observaciones:</label>
+                <input v-model="observaciones" type="text" class="form-control" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Método de pago:</label>
+                <select v-model="metodoPago" class="form-select">
+                  <option value="efectivo">Efectivo</option>
+                  <option value="tarjeta">Tarjeta</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="mixto">Mixto</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      <!-- Totales -->
+      <hr />
+      <p><strong>Subtotal:</strong> <span class="text-secondary">${{ subtotal }}</span></p>
+      <p><strong>Descuento total:</strong> <span class="text-secondary">${{ descuentoTotal }}</span></p>
+      <h5><strong>Total a pagar:</strong> <span class="text-success">${{ total }}</span></h5>
+    </div>
+  </div>
+      </div>
+
     </div>
 
     <!-- BOTONES DE ACCIÓN -->
@@ -185,7 +257,6 @@
   </div>
 </template>
 
-
 <script>
 import Navbar from '../components/Navbar.vue'
 import jsPDF from 'jspdf'
@@ -196,33 +267,35 @@ export default {
   name: 'Ventas',
   components: { Navbar },
   data() {
-    return {
-      busqueda: '',
-      cliente: '',
-      observaciones: '',
-      metodoPago: 'efectivo',
-      ticket: [],
-      historialVentas: [],
-      productosOriginal: [],
-      paginaCatalogo: 1,
-      productosPorPagina: 10,
-      paginaTicket: 1,
-      itemsPorTicket: 10,
-      productos: [
-        { codigo: 'P001', nombre: 'Croquetas Adulto', tipo: 'Producto', precio: 250, stock: 10 },
-        { codigo: 'S001', nombre: 'Consulta general', tipo: 'Servicio', precio: 150 },
-        { codigo: 'P002', nombre: 'Desparasitante', tipo: 'Producto', precio: 80, stock: 5 },
-        { codigo: 'S002', nombre: 'Baño y estética', tipo: 'Servicio', precio: 200 },
-        { codigo: 'P003', nombre: 'Juguete', tipo: 'Producto', precio: 100, stock: 0 },
-        { codigo: 'P004', nombre: 'Correa', tipo: 'Producto', precio: 50, stock: 2 },
-        { codigo: 'P005', nombre: 'Peine', tipo: 'Producto', precio: 25, stock: 6 },
-        { codigo: 'P006', nombre: 'Cama Grande', tipo: 'Producto', precio: 400, stock: 1 },
-        { codigo: 'P007', nombre: 'Champú', tipo: 'Producto', precio: 70, stock: 8 },
-        { codigo: 'P008', nombre: 'Transportadora', tipo: 'Producto', precio: 300, stock: 5 },
-        { codigo: 'P009', nombre: 'Comedero', tipo: 'Producto', precio: 60, stock: 3 }
-      ]
-    }
-  },
+  return {
+    busqueda: '',
+    // Datos del cliente
+    cliente: '',
+    clienteTelefono: '',
+    clienteEmail: '',
+    // Datos de la mascota (si hay servicio)
+    mascotaNombre: '',
+    mascotaEdad: '',
+    mascotaUnidadEdad: 'años',
+    mascotaEspecie: '',
+    mascotaRaza: '',
+    // Datos de la venta
+    observaciones: '',
+    metodoPago: 'efectivo',
+    usuarioId: 1, // o null si se obtiene dinámicamente al iniciar sesión
+    // Catálogo y ticket
+    productos: [],
+    ticket: [],
+    // Paginación
+    paginaCatalogo: 1,
+    productosPorPagina: 10,
+    paginaTicket: 1,
+    itemsPorTicket: 10
+  }
+},
+  mounted() {
+  this.cargarCatalogo()
+},
   computed: {
     productosFiltrados() {
       const filtro = this.busqueda.toLowerCase()
@@ -259,28 +332,67 @@ export default {
     },
     total() {
       return (this.subtotal - this.descuentoTotal).toFixed(2)
+    },
+    hayServicioEnTicket() {
+      return this.ticket.some(item => item.tipo === 'Servicio')
     }
   },
   methods: {
-    agregarAlTicket(producto) {
-      const ticketItem = this.ticket.find(item => item.codigo === producto.codigo)
-      const productoRef = this.productos.find(p => p.codigo === producto.codigo)
-      const esServicio = producto.tipo === 'Servicio'
+      async cargarCatalogo() {
+    try {
+      const res = await fetch('http://localhost:8080/catalogo')
+      const data = await res.json()
+      this.productos = data
+    } catch (error) {
+      console.error('Error al cargar el catálogo:', error)
+      Swal.fire('Error', 'No se pudo cargar el catálogo.', 'error')
+    }
+  },
+  agregarAlTicket(producto) {
+  // Validar que el producto tenga ID y código
+  if (!producto.id || !producto.codigo) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Error en producto',
+      text: 'El producto no tiene ID o código válido',
+      confirmButtonColor: '#7c245c'
+    });
+    return;
+  }
 
-      if (ticketItem) {
-        if (esServicio || (productoRef.stock && productoRef.stock > 0)) {
-          ticketItem.cantidad++
-          if (!esServicio) productoRef.stock--
-        }
-      } else {
-        this.ticket.push({
-          ...producto,
-          cantidad: 1,
-          descuento: 0
-        })
-        if (!esServicio) productoRef.stock--
-      }
-    },
+  const ticketItem = this.ticket.find(item => item.id === producto.id);
+  const productoRef = this.productos.find(p => p.id === producto.id);
+  const esServicio = producto.tipo === 'Servicio';
+
+  if (ticketItem) {
+    if (esServicio || (productoRef?.stock && productoRef.stock > 0)) {
+      ticketItem.cantidad++;
+      if (!esServicio && productoRef) productoRef.stock--;
+    } else {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Sin stock',
+        text: `No hay suficiente stock de ${producto.nombre}`,
+        confirmButtonColor: '#7c245c'
+      });
+    }
+  } else {
+    this.ticket.push({
+      id: producto.id,
+      codigo: producto.codigo,
+      nombre: producto.nombre,
+      tipo: producto.tipo,
+      precio: parseFloat(producto.precio) || 0,
+      cantidad: 1,
+      descuento: 0
+    });
+    
+    if (!esServicio && productoRef) {
+      productoRef.stock--;
+    }
+  }
+}, 
+   // Método para calcular el total de una línea del ticket,
     calcularTotalLinea(item) {
       const total = item.precio * item.cantidad * (1 - item.descuento / 100)
       return total.toFixed(2)
@@ -293,51 +405,168 @@ export default {
       }
       this.ticket.splice(index, 1)
     },
-    guardarVenta() {
+async guardarVenta() {
+  // Validación inicial
   if (this.ticket.length === 0) {
-    Swal.fire({
+    await Swal.fire({
       icon: 'warning',
       title: 'Ticket vacío',
       text: 'No hay productos ni servicios en el ticket.',
       confirmButtonColor: '#7c245c'
-    })
-    return
+    });
+    return;
   }
 
-  Swal.fire({
-    title: '¿Deseas guardar la venta?',
-    text: `Total: $${this.total}`,
+  // Validar cliente (campo obligatorio)
+  if (!this.cliente || this.cliente.trim() === '') {
+    await Swal.fire({
+      icon: 'error',
+      title: 'Datos incompletos',
+      text: 'El nombre del cliente es obligatorio',
+      confirmButtonColor: '#7c245c'
+    });
+    return;
+  }
+
+  // Validar mascota si hay servicios
+  if (this.hayServicioEnTicket) {
+    if (!this.mascotaNombre || this.mascotaNombre.trim() === '') {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Datos incompletos',
+        text: 'El nombre de la mascota es obligatorio para servicios',
+        confirmButtonColor: '#7c245c'
+      });
+      return;
+    }
+    if (!this.mascotaEspecie || this.mascotaEspecie.trim() === '') {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Datos incompletos',
+        text: 'La especie de la mascota es obligatoria para servicios',
+        confirmButtonColor: '#7c245c'
+      });
+      return;
+    }
+  }
+
+  // Validar items del ticket
+  for (const [index, item] of this.ticket.entries()) {
+    if (!item.id) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Error en el ticket',
+        html: `El item <strong>${item.nombre}</strong> no tiene ID válido`,
+        confirmButtonColor: '#7c245c'
+      });
+      return;
+    }
+    
+    if (item.tipo === 'Producto' && (!item.cantidad || item.cantidad <= 0)) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Error en el ticket',
+        html: `El producto <strong>${item.nombre}</strong> no tiene cantidad válida`,
+        confirmButtonColor: '#7c245c'
+      });
+      return;
+    }
+  }
+
+  // Confirmación de la venta
+  const confirm = await Swal.fire({
+    title: '¿Confirmar venta?',
+    html: `<div style="text-align:left;">
+             <p><strong>Cliente:</strong> ${this.cliente}</p>
+             ${this.hayServicioEnTicket ? `<p><strong>Mascota:</strong> ${this.mascotaNombre} (${this.mascotaEspecie})</p>` : ''}
+             <p><strong>Total:</strong> $${this.total}</p>
+             <p><strong>Método de pago:</strong> ${this.metodoPago}</p>
+           </div>`,
     icon: 'question',
     showCancelButton: true,
-    confirmButtonText: 'Sí, guardar',
+    confirmButtonText: 'Confirmar',
     cancelButtonText: 'Cancelar',
     confirmButtonColor: '#7c245c',
     cancelButtonColor: '#aaa'
-  }).then((result) => {
-    if (result.isConfirmed) {
-      const nuevaVenta = {
-        folio: `VTA-${this.historialVentas.length + 1}`.padStart(8, '0'),
-        fecha: new Date().toLocaleString('es-MX'),
-        cliente: this.cliente || 'Cliente general',
-        total: this.total
-      }
+  });
 
-      this.historialVentas.push(nuevaVenta)
-      this.generarPDF()
-      this.cancelarVenta()
+  if (!confirm.isConfirmed) return;
 
-      Swal.fire({
-        icon: 'success',
-        title: 'Venta guardada',
-        text: 'La venta se registró correctamente.',
-        confirmButtonColor: '#7c245c'
-      })
+  // Mostrar carga
+  Swal.fire({
+    title: 'Procesando venta...',
+    allowOutsideClick: false,
+    didOpen: () => {
+      Swal.showLoading();
     }
-  })
+  });
+
+  try {
+    // Preparar payload con estructura correcta
+    const ventaPayload = {
+      cliente: this.cliente.trim(),
+      clienteTelefono: this.clienteTelefono.trim() || null,
+      clienteEmail: this.clienteEmail.trim() || null,
+      mascota: this.hayServicioEnTicket ? {
+        nombre: this.mascotaNombre.trim(),
+        especie: this.mascotaEspecie.trim(),
+        edad: this.mascotaEdad || 0,
+        unidad_edad: this.mascotaUnidadEdad,
+        raza: this.mascotaRaza.trim() || ''
+      } : null,
+      ticket: this.ticket.map(item => ({
+        id: item.id,
+        codigo: item.codigo, // Asegurar que el código va en el payload
+        nombre: item.nombre,
+        tipo: item.tipo,
+        precio: parseFloat(item.precio),
+        cantidad: item.tipo === 'Producto' ? parseInt(item.cantidad) : 1, // Servicios siempre cantidad 1
+      })),
+      total: parseFloat(this.total),
+      metodoPago: this.metodoPago,
+      observaciones: this.observaciones.trim() || null,
+      usuarioId: this.usuarioId || 1
+    };
+
+    const res = await fetch('http://localhost:8080/ventas', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(ventaPayload)
+    });
+
+    const responseData = await res.json();
+
+    if (!res.ok) {
+      throw new Error(responseData.error || 'Error al procesar la venta');
+    }
+
+    // Éxito
+    Swal.fire({
+      icon: 'success',
+      title: 'Venta registrada',
+      html: `<p>Venta #${responseData.ventaId} registrada correctamente</p>
+             <p><strong>Total:</strong> $${this.total}</p>`,
+      confirmButtonColor: '#7c245c'
+    });
+
+    this.generarPDF();
+    this.cancelarVenta();
+
+  } catch (error) {
+    console.error('Error:', error);
+    Swal.fire({
+      icon: 'error',
+      title: 'Error al guardar',
+      html: `<div style="text-align:left;">
+               <p><strong>Error:</strong> ${error.message}</p>
+               <p>Revisa la consola para más detalles.</p>
+             </div>`,
+      confirmButtonColor: '#7c245c'
+    });
+  }
 },
-
-
-
     cancelarVenta() {
       this.ticket.forEach(item => {
         const productoRef = this.productos.find(p => p.codigo === item.codigo)
@@ -347,76 +576,86 @@ export default {
       })
       this.ticket = []
       this.cliente = ''
+      this.clienteTelefono = ''
+      this.clienteEmail = ''
+      this.mascotaNombre = ''
+      this.mascotaEspecie = ''
+      this.mascotaRaza = ''
       this.observaciones = ''
       this.metodoPago = 'efectivo'
     },
     generarPDF() {
-  if (this.ticket.length === 0) {
-    Swal.fire({
-      icon: 'warning',
-      title: 'Sin productos',
-      text: 'Agrega al menos un producto al ticket antes de generar el PDF.',
-      confirmButtonColor: '#7c245c'
-    })
-    return
-  }
+      if (this.ticket.length === 0) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Sin productos',
+          text: 'Agrega al menos un producto al ticket antes de generar el PDF.',
+          confirmButtonColor: '#7c245c'
+        })
+        return
+      }
 
-  const doc = new jsPDF()
+      const doc = new jsPDF()
 
-  // Encabezado
-  doc.setFontSize(18)
-  doc.setTextColor(33, 37, 41)
-  doc.text('Paw Friend Veterinaria', 14, 20)
+      // Encabezado
+      doc.setFontSize(18)
+      doc.setTextColor(33, 37, 41)
+      doc.text('Paw Friend Veterinaria', 14, 20)
 
-  doc.setFontSize(11)
-  doc.setTextColor(100)
-  doc.text('Calle Independencia 123, Oaxaca de Juárez', 14, 26)
-  doc.text('Tel: 951-123-4567', 14, 31)
+      doc.setFontSize(11)
+      doc.setTextColor(100)
+      doc.text('Calle Independencia 123, Oaxaca de Juárez', 14, 26)
+      doc.text('Tel: 951-123-4567', 14, 31)
 
-  doc.setTextColor(33, 37, 41)
-  doc.text(`Fecha: ${new Date().toLocaleDateString('es-MX')}`, 150, 20)
-  doc.text(`Hora: ${new Date().toLocaleTimeString('es-MX')}`, 150, 26)
-  doc.text(`Cliente: ${this.cliente || 'Cliente general'}`, 14, 38)
+      doc.setTextColor(33, 37, 41)
+      doc.text(`Fecha: ${new Date().toLocaleDateString('es-MX')}`, 150, 20)
+      doc.text(`Hora: ${new Date().toLocaleTimeString('es-MX')}`, 150, 26)
+      doc.text(`Cliente: ${this.cliente}`, 14, 38)
+      if (this.clienteTelefono) doc.text(`Teléfono: ${this.clienteTelefono}`, 14, 43)
+      if (this.clienteEmail) doc.text(`Email: ${this.clienteEmail}`, 14, 48)
+      if (this.hayServicioEnTicket) {
+        doc.text(`Mascota: ${this.mascotaNombre}`, 14, 53)
+        doc.text(`Especie: ${this.mascotaEspecie} - Raza: ${this.mascotaRaza}`, 14, 58)
+      }
 
-  // Tabla de productos
-  autoTable(doc, {
-    startY: 45,
-    head: [['Producto', 'Cantidad', 'Precio', 'Descuento', 'Total']],
-    body: this.ticket.map(item => [
-      item.nombre,
-      item.cantidad,
-      `$${item.precio}`,
-      `${item.descuento}%`,
-      `$${this.calcularTotalLinea(item)}`
-    ]),
-    headStyles: {
-      fillColor: [124, 36, 92], // color #7c245c
-      halign: 'center'
+      // Tabla de productos
+      autoTable(doc, {
+        startY: this.hayServicioEnTicket ? 65 : 50,
+        head: [['Producto', 'Cantidad', 'Precio', 'Descuento', 'Total']],
+        body: this.ticket.map(item => [
+          item.nombre,
+          item.cantidad,
+          `$${item.precio}`,
+          `${item.descuento}%`,
+          `$${this.calcularTotalLinea(item)}`
+        ]),
+        headStyles: {
+          fillColor: [124, 36, 92],
+          halign: 'center'
+        },
+        styles: {
+          fontSize: 10,
+          cellPadding: 4
+        }
+      })
+
+      // Totales
+      const finalY = doc.lastAutoTable.finalY + 10
+      doc.setFontSize(11)
+      doc.text(`Subtotal: $${this.subtotal}`, 150, finalY)
+      doc.text(`Descuento total: $${this.descuentoTotal}`, 150, finalY + 6)
+      doc.setFontSize(13)
+      doc.text(`Total a pagar: $${this.total}`, 150, finalY + 14)
+
+      doc.save(`Ticket_${new Date().getTime()}.pdf`)
     },
-    styles: {
-      fontSize: 10,
-      cellPadding: 4
-    }
-  })
-
-  // Totales
-  const finalY = doc.lastAutoTable.finalY + 10
-  doc.setFontSize(11)
-  doc.text(`Subtotal: $${this.subtotal}`, 150, finalY)
-  doc.text(`Descuento total: $${this.descuentoTotal}`, 150, finalY + 6)
-  doc.setFontSize(13)
-  doc.text(`Total a pagar: $${this.total}`, 150, finalY + 14)
-
-  // Guardar PDF
-  doc.save(`Ticket_${new Date().getTime()}.pdf`)
-},
-
     actualizarTotales() {
       this.ticket = [...this.ticket]
     }
   }
 }
 </script>
+
 
 <style scoped>
 .container {
