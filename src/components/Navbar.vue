@@ -34,18 +34,25 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import Swal from 'sweetalert2'
+import { computed } from 'vue'
 
 const router = useRouter()
+const usuario = JSON.parse(localStorage.getItem('usuario')) || { rol: 'empleado' }
 
-const menu = [
-  { nombre: 'Inicio', ruta: '/dashboard', icono: 'home' },
-  { nombre: 'Ventas', ruta: '/ventas', icono: 'point_of_sale' },
-  { nombre: 'Clientes', ruta: '/clientes', icono: 'people' },
-  { nombre: 'Inventario', ruta: '/productos', icono: 'inventory_2' },
-  { nombre: 'Servicios', ruta: '/servicios', icono: 'pets' },
-  { nombre: 'Compras', ruta: '/proveedores', icono: 'shopping_cart' },
-  { nombre: 'Usuarios', ruta: '/usuarios', icono: 'person' }
+const menuCompleto = [
+  { nombre: 'Inicio', ruta: '/dashboard', icono: 'home', roles: ['administrador', 'empleado'] },
+  { nombre: 'Ventas', ruta: '/ventas', icono: 'point_of_sale', roles: ['administrador', 'empleado'] },
+  { nombre: 'Clientes', ruta: '/clientes', icono: 'people', roles: ['administrador', 'empleado'] },
+  { nombre: 'Inventario', ruta: '/productos', icono: 'inventory_2', roles: ['administrador', 'empleado'] },
+  { nombre: 'Servicios', ruta: '/servicios', icono: 'pets', roles: ['administrador', 'empleado'] },
+  { nombre: 'Compras', ruta: '/proveedores', icono: 'shopping_cart', roles: ['administrador'] },
+  { nombre: 'Usuarios', ruta: '/usuarios', icono: 'person', roles: ['administrador'] }
 ]
+
+
+const menu = computed(() => {
+  return menuCompleto.filter(item => item.roles.includes(usuario.rol))
+})
 
 const cerrarSesion = () => {
   Swal.fire({
@@ -57,6 +64,7 @@ const cerrarSesion = () => {
     confirmButtonColor: '#7c245c'
   }).then((result) => {
     if (result.isConfirmed) {
+      localStorage.removeItem('usuario')
       router.push('/login')
     }
   })

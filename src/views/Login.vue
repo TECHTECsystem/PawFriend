@@ -37,12 +37,13 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Swal from 'sweetalert2'
+import axios from 'axios'
 
 const usuario = ref('')
 const contrasena = ref('')
 const router = useRouter()
 
-const iniciarSesion = () => {
+const iniciarSesion = async () => {
   if (usuario.value === '' || contrasena.value === '') {
     Swal.fire({
       icon: 'warning',
@@ -52,21 +53,31 @@ const iniciarSesion = () => {
     return
   }
 
-  if (usuario.value === 'demo' && contrasena.value === '1234') {
+  try {
+    const res = await axios.post('http://localhost:8080/login', {
+      username: usuario.value,
+      password: contrasena.value
+    })
+
+    const datos = res.data
+
+    // Guardar en localStorage si lo necesitas
+    localStorage.setItem('usuario', JSON.stringify(datos))
+
     Swal.fire({
       icon: 'success',
-      title: '¡Bienvenido!',
+      title: `¡Bienvenido, ${datos.nombre}!`,
       text: 'Inicio de sesión exitoso',
       showConfirmButton: false,
       timer: 1500
     }).then(() => {
       router.push('/dashboard')
     })
-  } else {
+  } catch (err) {
     Swal.fire({
       icon: 'error',
-      title: 'Credenciales incorrectas',
-      text: 'Verifica tu usuario o contraseña.'
+      title: 'Error de autenticación',
+      text: err.response?.data?.error || 'No se pudo iniciar sesión'
     })
   }
 }

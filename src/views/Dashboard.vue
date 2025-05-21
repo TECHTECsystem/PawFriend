@@ -133,14 +133,14 @@
 
 <script>
 import Navbar from '../components/Navbar.vue'
+import { useRouter } from 'vue-router'
 
 export default {
   name: 'Dashboard',
   components: { Navbar },
   data() {
     return {
-      usuario: { nombre: 'Tadeo', rol: 'Administrador' },
-
+      usuario: { nombre: '', rol: '' },
       fecha: '',
       hora: '',
       intervalo: null,
@@ -153,11 +153,11 @@ export default {
       ],
 
       accesos: [
-  { label: 'Nueva venta', icono: 'point_of_sale', ruta: '/ventas' },
-  { label: 'Registrar cliente', icono: 'person_add', ruta: '/clientes' },
-  { label: 'Agregar producto', icono: 'add_box', ruta: '/productos' },
-  { label: 'Agendar servicio', icono: 'event', ruta: '/servicios' }
-],
+        { label: 'Nueva venta', icono: 'point_of_sale', ruta: '/ventas' },
+        { label: 'Registrar cliente', icono: 'person_add', ruta: '/clientes' },
+        { label: 'Agregar producto', icono: 'add_box', ruta: '/productos' },
+        { label: 'Agendar servicio', icono: 'event', ruta: '/servicios' }
+      ],
 
       citas: [
         { hora: '09:00', nombre: 'Firulais', servicio: 'Vacunación' },
@@ -212,14 +212,22 @@ export default {
     }
   },
   mounted() {
-  this.actualizarReloj()
-  this.intervalo = setInterval(this.actualizarReloj, 1000)
-},
-beforeDestroy() {
-  clearInterval(this.intervalo)
-},
-
+    this.cargarUsuario()
+    this.actualizarReloj()
+    this.intervalo = setInterval(this.actualizarReloj, 1000)
+  },
+  beforeDestroy() {
+    clearInterval(this.intervalo)
+  },
   methods: {
+    cargarUsuario() {
+      const usuarioGuardado = localStorage.getItem('usuario')
+      if (!usuarioGuardado) {
+        this.$router.push('/login') // Redirige si no hay sesión
+        return
+      }
+      this.usuario = JSON.parse(usuarioGuardado)
+    },
     actualizarReloj() {
       const ahora = new Date()
       const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }
@@ -229,6 +237,7 @@ beforeDestroy() {
   }
 }
 </script>
+
 
 <style scoped>
 .encabezado-dashboard {
