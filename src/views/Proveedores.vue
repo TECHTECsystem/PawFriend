@@ -29,12 +29,7 @@
                 <th>Código</th>
                 <th>Razón Social</th>
                 <th>RFC</th>
-                <th>Domicilio Fiscal</th>
-                <th>Domicilio Entrega</th>
                 <th>Contacto</th>
-                <th>Cond. Pago</th>
-                <th>Cuenta Contable</th>
-                <th>Centro Costo</th>
                 <th class="text-center">Acciones</th>
               </tr>
             </thead>
@@ -44,19 +39,14 @@
                 :key="proveedor.id"
                 :class="{ seleccionado: proveedorSeleccionado && proveedor.id === proveedorSeleccionado.id }"
               >
-                <td>{{ proveedor.id }}</td>
-                <td>{{ proveedor.razonSocial }}</td>
-                <td>{{ proveedor.rfc }}</td>
-                <td>{{ proveedor.domicilioFiscal }}</td>
-                <td>{{ proveedor.domicilioEntrega }}</td>
-                <td>
+                <td class="text-center align-middle">{{ proveedor.id }}</td>
+                <td class="text-center align-middle">{{ proveedor.razonSocial }}</td>
+                <td class="text-center align-middle">{{ proveedor.rfc }}</td>
+                <td class="text-center align-middle">
                   {{ proveedor.contacto.nombre }}<br>
                   <small>{{ proveedor.contacto.email }}</small><br>
                   <small>{{ proveedor.contacto.telefono }}</small>
                 </td>
-                <td>{{ proveedor.condicionesPago.diasNetos }} días, {{ proveedor.condicionesPago.descuento }}%</td>
-                <td>{{ proveedor.cuentaContable }}</td>
-                <td>{{ proveedor.centroCosto }}</td>
                 <td class="text-center align-middle">
                   <div class="d-flex justify-content-center">
                     <button class="btn-ver" @click="alternarSeleccion(proveedor)" style="background: var(--color-acento); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
@@ -159,7 +149,7 @@
               <div class="mt-3 acciones-detalle">
                 <button v-if="!modoEdicion" class="btn me-2" style="background: var(--color-primario); color: white" @click="modoEdicion = true">Editar</button>
                 <button v-if="modoEdicion" class="btn me-2" style="background: var(--color-acento); color: white" @click="guardarCambios" :disabled="guardBoton">Guardar</button>
-                <button v-if="modoEdicion" class="btn me-2" style="background: darkred; color: white" @click="eliminarProveedor(proveedorSeleccionado.id)" :disabled="guardBoton">Eliminar</button>
+                <button v-if="modoEdicion" class="btn me-2" style="background: darkred; color: white" @click="eliminarProveedor(proveedorSeleccionado.id_proveedor)" :disabled="guardBoton">Eliminar</button>
                 <button class="btn btn-secondary" @click="limpiarSeleccion">← Regresar</button>
               </div>
             </div>
@@ -184,7 +174,10 @@
             <div class="row g-3">
               <div class="col-md-4">
                 <label class="form-label">Código interno *</label>
-                <input v-model="nuevoProveedor.id" class="form-control" required maxlength="20" />
+                <input v-model="nuevoProveedor.id" class="form-control" required maxlength="20" :class="{'is-invalid': v$.nuevoProveedor.id?.$error}" />
+                <div v-if="v$.nuevoProveedor.id?.$error" class="invalid-feedback">
+                  <span v-if="!v$.nuevoProveedor.id.required">Campo requerido.</span>
+                </div>
               </div>
               <div class="col-md-8">
                 <label class="form-label">Razón social *</label>
@@ -290,7 +283,6 @@ import Swal from 'sweetalert2';
 import useVuelidate from '@vuelidate/core';
 import { required, minLength, email, numeric, minValue } from '@vuelidate/validators';
 import * as XLSX from 'xlsx';
-import axios from 'axios';
 
 const MONEDAS = [
   { value: '', label: 'Selecciona moneda' },
@@ -307,7 +299,38 @@ export default {
   data() {
     return {
       busqueda: '',
-      proveedores: [],
+      proveedores: [
+        {
+          id: 'P001',
+          razonSocial: 'Proveedor Uno S.A. de C.V.',
+          rfc: 'PUO123456789',
+          domicilioFiscal: 'Calle Falsa 123, CDMX',
+          domicilioEntrega: 'Bodega 1, CDMX',
+          contacto: { nombre: 'Juan Pérez', email: 'juan@proveedoruno.com', telefono: '555-1234' },
+          condicionesPago: { diasNetos: 30, descuento: 5 },
+          moneda: 'MXN',
+          tipoCambio: 1,
+          cuentaContable: '6001',
+          centroCosto: 'CC01',
+          transportista: 'Transportes MX',
+          incoterm: 'EXW'
+        },
+        {
+          id: 'P002',
+          razonSocial: 'Distribuciones Dos S.A.',
+          rfc: 'DDO987654321',
+          domicilioFiscal: 'Av. Central 456, GDL',
+          domicilioEntrega: 'Bodega 2, GDL',
+          contacto: { nombre: 'Ana López', email: 'ana@distribucionesdos.com', telefono: '333-5678' },
+          condicionesPago: { diasNetos: 15, descuento: 0 },
+          moneda: 'USD',
+          tipoCambio: 17.5,
+          cuentaContable: '6002',
+          centroCosto: 'CC02',
+          transportista: 'Logística Express',
+          incoterm: 'FOB'
+        }
+      ],
       proveedorSeleccionado: null,
       modoEdicion: false,
       paginaActual: 1,
@@ -333,10 +356,17 @@ export default {
   validations() {
     return {
       nuevoProveedor: {
+        id: { required },
         razonSocial: { required, minLength: minLength(3) },
         rfc: { required, minLength: minLength(12) },
+        domicilioFiscal: { required },
+        domicilioEntrega: { required },
+        cuentaContable: { required },
+        centroCosto: { required },
         contacto: {
-          email: { required, email }
+          nombre: { required },
+          email: { required, email },
+          telefono: { required }
         },
         condicionesPago: {
           diasNetos: { required, numeric, minValue: minValue(1) },
@@ -402,39 +432,9 @@ export default {
 }
   },
   mounted() {
-    this.cargarProveedores();
+    this.cargarProveedores(); // Eliminado: no se usa API, solo datos de prueba
   },
   methods: {
-    async cargarProveedores() {
-  try {
-    const res = await axios.get('http://localhost:8080/proveedores');
-    this.proveedores = res.data.map(p => ({
-      id: p.id,
-      razonSocial: p.razon_social,
-      rfc: p.rfc,
-      domicilioFiscal: p.domicilio_fiscal,
-      domicilioEntrega: p.domicilio_entrega,
-      contacto: {
-        nombre: p.contacto_nombre,
-        email: p.contacto_email,
-        telefono: p.contacto_telefono
-      },
-      condicionesPago: {
-          diasNetos: p.condiciones_pago_dias,
-          descuento: p.condiciones_pago_descuento
-      },
-      moneda: p.moneda,
-      tipoCambio: p.tipo_cambio,
-      cuentaContable: p.cuenta_contable,
-      centroCosto: p.centro_costo,
-      transportista: p.transportista,
-      incoterm: p.incoterm
-    }))
-  } catch (err) {
-    console.error(err)
-    Swal.fire('Error', 'No se pudieron cargar los proveedores', 'error')
-  }
-},
     alternarSeleccion(proveedor) {
       if (this.proveedorSeleccionado && this.proveedorSeleccionado.id === proveedor.id) {
         this.limpiarSeleccion();
@@ -445,64 +445,147 @@ export default {
         this.modoEdicion = false;
       }
     },
-    limpiarSeleccion() {
-      this.proveedorSeleccionado = null;
-      this.paginaActual = this.paginaAnterior;
-    },
-    async guardarCambios() {
-      this.guardBoton = true;
-      try {
-        const res = await axios.put('http://localhost:8080/proveedores/' + this.proveedorSeleccionado.id, this.proveedorSeleccionado);
-        const idx = this.proveedores.findIndex(p => p.id === this.proveedorSeleccionado.id);
-        if (idx !== -1) this.proveedores.splice(idx, 1, res.data);
-        Swal.fire('Actualizado', 'Proveedor actualizado con éxito', 'success');
-        this.limpiarSeleccion();
-      } catch (e) {
-        Swal.fire('Error', 'No se pudo actualizar el proveedor', 'error');
-      } finally {
-        this.guardBoton = false;
+  async cargarProveedores() {
+    try {
+      const res = await fetch('http://localhost:8080/api/proveedores');
+      if (!res.ok) throw new Error('No se pudieron cargar los proveedores');
+      const data = await res.json();
+      this.proveedores = data.map(p => ({
+        id_proveedor: p.id_proveedor,
+        id: p.codigo_interno,
+        idProveedor: p.id_proveedor,
+        razonSocial: p.razon_social,
+        rfc: p.rfc,
+        domicilioFiscal: p.domicilio_fiscal,
+        domicilioEntrega: p.domicilio_entrega,
+        contacto: {
+          nombre: p.contacto_nombre,
+          email: p.contacto_email,
+          telefono: p.contacto_telefono
+        },
+        condicionesPago: {
+          diasNetos: Number(p.condiciones_pago_dias),
+          descuento: Number(p.condiciones_pago_descuento)
+        },
+        moneda: p.moneda,
+        tipoCambio: p.tipo_cambio,
+        cuentaContable: p.cuenta_contable,
+        centroCosto: p.centro_costo,
+        transportista: p.transportista,
+        incoterm: p.incoterm
+      }));
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error', 'No se pudieron cargar los proveedores', 'error');
+    }
+  },
+  async guardarProveedor() {
+    this.v$.$touch();
+    if (this.v$.$invalid) {
+      Swal.fire('Campos requeridos', 'Por favor corrige los errores del formulario', 'warning');
+      return;
+    }
+    try {
+      const body = {
+        codigo_interno: this.nuevoProveedor.id,
+        razon_social: this.nuevoProveedor.razonSocial,
+        rfc: this.nuevoProveedor.rfc,
+        domicilio_fiscal: this.nuevoProveedor.domicilioFiscal,
+        domicilio_entrega: this.nuevoProveedor.domicilioEntrega,
+        contacto_nombre: this.nuevoProveedor.contacto.nombre,
+        contacto_email: this.nuevoProveedor.contacto.email,
+        contacto_telefono: this.nuevoProveedor.contacto.telefono,
+        condiciones_pago_dias: this.nuevoProveedor.condicionesPago.diasNetos,
+        condiciones_pago_descuento: this.nuevoProveedor.condicionesPago.descuento,
+        moneda: this.nuevoProveedor.moneda,
+        tipo_cambio: this.nuevoProveedor.tipoCambio,
+        cuenta_contable: this.nuevoProveedor.cuentaContable,
+        centro_costo: this.nuevoProveedor.centroCosto,
+        transportista: this.nuevoProveedor.transportista,
+        incoterm: this.nuevoProveedor.incoterm
+      };
+      const res = await fetch('http://localhost:8080/api/proveedores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'No se pudo registrar el proveedor');
       }
-    },
-    async eliminarProveedor(id) {
-      this.guardBoton = true;
-      try {
-        const res = await Swal.fire({
-          title: '¿Eliminar proveedor?',
-          text: 'No podrás revertir esto',
-          icon: 'warning',
-          showCancelButton: true,
-          confirmButtonText: 'Sí, eliminar',
-          cancelButtonText: 'Cancelar',
-          confirmButtonColor: 'var(--rojo)'
-        });
-        if (res.isConfirmed) {
-          await axios.delete('http://localhost:8080/proveedores/' + id);
-          this.proveedores = this.proveedores.filter(p => p.id !== id);
-          Swal.fire('Eliminado', 'Proveedor eliminado', 'success');
-          if (this.proveedorSeleccionado?.id === id) this.limpiarSeleccion();
-        }
-      } catch (e) {
-        Swal.fire('Error', 'No se pudo eliminar el proveedor', 'error');
-      } finally {
-        this.guardBoton = false;
+      await this.cargarProveedores();
+      Swal.fire('¡Guardado!', 'Proveedor registrado correctamente', 'success');
+      const modal = window.bootstrap.Modal.getInstance(document.getElementById('modalNuevoProveedor'));
+      if (modal) modal.hide();
+    } catch (e) {
+      Swal.fire('Error', e.message || 'No se pudo registrar el proveedor', 'error');
+    }
+  },
+  async guardarCambios() {
+    this.guardBoton = true;
+    try {
+      const body = {
+        codigo_interno: this.proveedorSeleccionado.id,
+        razon_social: this.proveedorSeleccionado.razonSocial,
+        rfc: this.proveedorSeleccionado.rfc,
+        domicilio_fiscal: this.proveedorSeleccionado.domicilioFiscal,
+        domicilio_entrega: this.proveedorSeleccionado.domicilioEntrega,
+        contacto_nombre: this.proveedorSeleccionado.contacto.nombre,
+        contacto_email: this.proveedorSeleccionado.contacto.email,
+        contacto_telefono: this.proveedorSeleccionado.contacto.telefono,
+        condiciones_pago_dias: this.proveedorSeleccionado.condicionesPago.diasNetos,
+        condiciones_pago_descuento: this.proveedorSeleccionado.condicionesPago.descuento,
+        moneda: this.proveedorSeleccionado.moneda,
+        tipo_cambio: this.proveedorSeleccionado.tipoCambio,
+        cuenta_contable: this.proveedorSeleccionado.cuentaContable,
+        centro_costo: this.proveedorSeleccionado.centroCosto,
+        transportista: this.proveedorSeleccionado.transportista,
+        incoterm: this.proveedorSeleccionado.incoterm
+      };
+      const res = await fetch(`http://localhost:8080/api/proveedores/${this.proveedorSeleccionado.idProveedor}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'No se pudo actualizar el proveedor');
       }
-    },
-    async guardarProveedor() {
-      this.v$.$touch();
-      if (this.v$.$invalid) {
-        Swal.fire('Campos requeridos', 'Por favor corrige los errores del formulario', 'warning');
-        return;
+      await this.cargarProveedores();
+      Swal.fire('Actualizado', 'Proveedor actualizado con éxito', 'success');
+      this.limpiarSeleccion();
+    } catch (e) {
+      Swal.fire('Error', e.message || 'No se pudo actualizar el proveedor', 'error');
+    } finally {
+      this.guardBoton = false;
+    }
+  },
+  async eliminarProveedor(idProveedor) {
+    this.guardBoton = true;
+    try {
+      const resSwal = await Swal.fire({
+        title: '¿Eliminar proveedor?',
+        text: 'No podrás revertir esto',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#d33', // Color rojo visible para el botón de confirmar
+        cancelButtonColor: '#aaa'   // Color gris para el botón de cancelar
+      });
+      if (resSwal.isConfirmed) {
+        const res = await fetch(`http://localhost:8080/api/proveedores/${idProveedor}`, { method: 'DELETE' });
+        if (!res.ok && res.status !== 204) throw new Error('No se pudo eliminar el proveedor');
+        await this.cargarProveedores();
+        Swal.fire('Eliminado', 'Proveedor eliminado', 'success');
+        if (this.proveedorSeleccionado?.idProveedor === idProveedor) this.limpiarSeleccion();
       }
-      try {
-        const res = await axios.post('http://localhost:8080/proveedores', this.nuevoProveedor);
-        this.proveedores.push(res.data);
-        Swal.fire('¡Guardado!', 'Proveedor registrado correctamente', 'success');
-        const modal = window.bootstrap.Modal.getInstance(document.getElementById('modalNuevoProveedor'));
-        if (modal) modal.hide();
-      } catch (e) {
-        Swal.fire('Error', 'No se pudo registrar el proveedor', 'error');
-      }
-    },
+    } catch (e) {
+      Swal.fire('Error', e.message || 'No se pudo eliminar el proveedor', 'error');
+    } finally {
+      this.guardBoton = false;
+    }
+  },
     exportarExcel() {
       const data = this.proveedores.map(p => ({
         'Código': p.id,
@@ -526,6 +609,10 @@ export default {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Proveedores');
       XLSX.writeFile(wb, 'proveedores.xlsx');
+    },
+    limpiarSeleccion() {
+      this.proveedorSeleccionado = null;
+      this.paginaActual = this.paginaAnterior;
     }
   }
 };
@@ -545,6 +632,7 @@ export default {
   --color-negro: #000000;
 }
 
+/* Estructura principal */
 .container {
   font-family: 'Nunito Sans', sans-serif;
 }
@@ -552,12 +640,17 @@ export default {
 .dashboard-contenedor {
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
 }
 
 .contenido {
   padding: 1rem;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
+/* Contenedor de tabla */
 .card.tabla-contenedor {
   border: none;
   border-radius: 8px;
@@ -565,61 +658,124 @@ export default {
   background: var(--color-fondo);
   margin-bottom: 1.5rem;
   color: var(--color-texto);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
+/* Header de tabla - Botones optimizados */
 .card-header {
   background: var(--color-suave);
   border-bottom: none;
   padding: 0.75rem 1rem;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
+  border-radius: 8px 8px 0 0;
   display: flex;
-  align-items: center;
-  gap: 1rem;
   flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .input-busqueda {
-  width: 100%;
+  flex: 1;
+  min-width: 200px;
   max-width: 300px;
   padding: 0.5rem 1rem;
   border-radius: 20px;
   border: none;
   outline: none;
-}
-.input-busqueda:focus {
-  border: 2px solid var(--color-acento);
+  background: var(--color-blanco);
+  transition: all 0.3s;
+  font-size: 0.9rem;
 }
 
+.input-busqueda:focus {
+  border: 2px solid var(--color-acento);
+  box-shadow: 0 0 0 0.2rem rgba(124,20,84,0.1);
+}
+
+/* Grupo de botones compactos */
+.botones-header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+/* Botones cabecera optimizados */
+.btn-nuevo {
+  background-color: var(--color-acento);
+  color: white;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+
+.btn-nuevo:hover {
+  background-color: var(--color-primario);
+  transform: translateY(-1px);
+}
+
+.btn-exportar {
+  background-color: var(--color-secundario);
+  color: white;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+
+.btn-exportar:hover {
+  background-color: var(--color-acento);
+  transform: translateY(-1px);
+}
+
+/* Tabla - Versión desktop */
 .tabla-productos {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
+  border-collapse: collapse;
   background: var(--color-blanco);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  overflow: hidden;
-  animation: fadeInTable 0.7s ease;
+  min-width: 600px;
 }
 
 .tabla-productos th,
 .tabla-productos td {
   padding: 0.75rem 1rem;
-  border-bottom: none;
-  border-right: none;
-  text-align: left;
-  vertical-align: middle;
-  transition: background 0.3s;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+  transition: all 0.3s;
 }
 
-.tabla-productos th:last-child,
-.tabla-productos td:last-child {
-  border-right: none;
-}
-
-.tabla-productos thead th {
+.tabla-productos th {
   background: var(--color-secundario);
   color: var(--color-blanco);
   font-weight: bold;
+  position: sticky;
+  top: 0;
+  text-align: center;
+  font-size: 0.9rem;
+  padding: 0.6rem 0.8rem;
+}
+
+.tabla-productos td {
+  text-align: left;
+  vertical-align: middle;
+  font-size: 0.9rem;
+}
+
+/* Última columna (acciones) centrada */
+.tabla-productos td:last-child {
   text-align: center;
 }
 
@@ -633,77 +789,64 @@ export default {
   box-shadow: 0 2px 12px rgba(124,36,92,0.12);
 }
 
+/* Botones de acción */
 .btn-ver {
   background: var(--color-acento);
   border: none;
   color: white;
   border-radius: 50%;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s;
+  transition: all 0.3s;
+  font-size: 0.9rem;
 }
+
 .btn-ver:hover {
   background: var(--color-primario);
+  transform: scale(1.1);
 }
 
-.paginacion {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem;
-}
-
-.btn-pag {
-  background: var(--color-primario);
-  border: none;
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-weight: bold;
-}
-.btn-pag:disabled {
-  background: #ccc;
-}
-
+/* Panel de detalles */
 .panel-visualizacion {
   background: var(--color-suave);
   color: var(--color-blanco);
   border-radius: 12px;
   padding: 1.5rem;
   margin-bottom: 1rem;
+  transition: all 0.3s ease;
 }
 
 .panel-visualizacion .card-title {
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   font-weight: bold;
   text-align: center;
+  margin-bottom: 1.5rem;
 }
 
-.panel-visualizacion .detalle-seccion {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2rem;
-  margin-top: 1rem;
+.detalle-seccion {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
   border-bottom: 1px solid rgba(255,255,255,0.4);
-  padding-bottom: 1.2rem;
 }
 
-.panel-visualizacion .detalle-columna label {
+.detalle-columna label {
   color: var(--color-blanco);
-  font-size: 1rem;
-  margin-bottom: 0.25rem;
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
   display: block;
+  font-weight: bold;
 }
 
-.panel-visualizacion .detalle-columna div,
-.panel-visualizacion .detalle-columna input {
-  font-size: 1.1rem;
+.detalle-columna div,
+.detalle-columna input {
+  font-size: 1rem;
   font-weight: 500;
-  color: var(--color-blanco);
 }
 
 .panel-visualizacion input.form-control,
@@ -711,75 +854,38 @@ export default {
   color: var(--color-texto);
   background: var(--color-blanco);
   box-shadow: 0 0 0 0.2rem rgba(124,20,84,0.25);
+  width: 100%;
+  font-size: 0.95rem;
 }
 
-.panel-visualizacion-inicial {
-  text-align: center;
-  color: #666;
-  padding: 2rem;
-}
-
-@media (max-width: 700px) {
-  .panel-visualizacion .detalle-seccion {
-    flex-direction: column;
-  }
-}
-
-.fade-slide-enter-active, .fade-slide-leave-active {
-  transition: all 0.3s ease;
-}
-.fade-slide-enter-from, .fade-slide-leave-to {
-  opacity: 0;
-  transform: translateY(10px);
-}
-.fade-slide-enter-to, .fade-slide-leave-from {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-@keyframes fadeInTable {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Botones cabecera */
-.btn-nuevo {
-  background-color: var(--color-acento);
-  color: white;
-  font-weight: 500;
-  border: none;
-  border-radius: 10px;
-  padding: 0.5rem 1.2rem;
+/* Paginación */
+.paginacion {
   display: flex;
+  justify-content: center;
   align-items: center;
-  gap: 0.4rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
-  transition: background 0.2s ease;
+  gap: 0.75rem;
+  padding: 1rem;
+  flex-wrap: wrap;
 }
 
-.btn-nuevo:hover {
-  background-color: var(--color-primario);
-}
-
-.btn-exportar {
-  background-color: var(--color-secundario);
-  color: white;
-  font-weight: 500;
+.btn-pag {
+  background: var(--color-primario);
   border: none;
-  border-radius: 10px;
-  padding: 0.5rem 1.2rem;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
-  transition: background 0.2s ease;
+  color: white;
+  padding: 0.4rem 0.9rem;
+  border-radius: 20px;
+  font-weight: bold;
+  min-width: 90px;
+  font-size: 0.85rem;
+  transition: all 0.3s;
 }
 
-.btn-exportar:hover {
-  background-color: var(--color-acento);
+.btn-pag:disabled {
+  background: #ccc;
+  cursor: not-allowed;
 }
 
-/* Estilo general del modal */
+/* Modal */
 .modal-content {
   background-color: var(--color-fondo);
   border-radius: 12px;
@@ -798,7 +904,7 @@ export default {
 
 .modal-title {
   font-weight: bold;
-  font-size: 1.3rem;
+  font-size: 1.2rem;
 }
 
 .modal-body {
@@ -809,15 +915,15 @@ export default {
 .modal-body .form-label {
   font-weight: 600;
   color: var(--color-primario);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
 }
 
 .modal-body .form-control,
 .modal-body .form-select {
   border: 1px solid #ccc;
   border-radius: 10px;
-  transition: border-color 0.2s ease;
-  box-shadow: none;
+  transition: all 0.3s;
+  font-size: 0.9rem;
 }
 
 .modal-body .form-control:focus,
@@ -826,12 +932,6 @@ export default {
   box-shadow: 0 0 0 0.2rem rgba(124, 20, 84, 0.2);
 }
 
-.invalid-feedback {
-  font-size: 0.8rem;
-  color: #b00020;
-}
-
-/* Botones del footer */
 .modal-footer {
   border-top: 1px solid #ddd;
   background-color: #f9f9fb;
@@ -840,14 +940,18 @@ export default {
   border-bottom-right-radius: 12px;
 }
 
+.modal-footer .btn {
+  border-radius: 8px;
+  padding: 0.4rem 1rem;
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: all 0.3s;
+}
+
 .modal-footer .btn-secondary {
   background-color: var(--color-primario);
   color: var(--color-blanco);
   border: none;
-  border-radius: 8px;
-  padding: 0.4rem 1rem;
-  font-weight: 500;
-  transition: background 0.2s ease;
 }
 
 .modal-footer .btn-secondary:hover {
@@ -858,20 +962,193 @@ export default {
   background-color: var(--color-acento);
   color: var(--color-blanco);
   border: none;
-  border-radius: 8px;
-  padding: 0.4rem 1rem;
-  font-weight: 500;
-  transition: background 0.2s ease;
-}
-
-.modal-footer .btn-primary:disabled {
-  background-color: #aaa;
-  cursor: not-allowed;
 }
 
 .modal-footer .btn-primary:hover:not(:disabled) {
   background-color: var(--color-primario);
 }
 
+/* Animaciones */
+@keyframes fadeInTable {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.3s ease;
+}
+
+.fade-slide-enter-from,
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+/* Media Queries para responsividad */
+@media (max-width: 1200px) {
+  .contenido {
+    padding: 0.75rem;
+  }
+  
+  .panel-visualizacion {
+    padding: 1.25rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .card-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .input-busqueda {
+    order: 1;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .botones-header {
+    order: 2;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .botones-header .btn-nuevo,
+  .botones-header .btn-exportar {
+    flex: 1 1 auto;
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+
+/* Versión móvil mejorada */
+@media (max-width: 768px) {
+  .tabla-productos {
+    font-size: 0.85rem;
+    min-width: 100%;
+  }
+  
+  .tabla-productos th,
+  .tabla-productos td {
+    padding: 0.5rem 0.6rem;
+  }
+  
+  /* Ocultamos columnas menos importantes */
+  .tabla-productos th:nth-child(3),
+  .tabla-productos td:nth-child(3) {
+    display: none;
+  }
+  
+  /* Ajustamos el ancho de columnas */
+  .tabla-productos th:nth-child(1),
+  .tabla-productos td:nth-child(1) {
+    width: 15%;
+  }
+  
+  .tabla-productos th:nth-child(2),
+  .tabla-productos td:nth-child(2) {
+    width: 25%;
+  }
+  
+  .tabla-productos th:nth-child(4),
+  .tabla-productos td:nth-child(4) {
+    width: 20%;
+    text-align: center;
+  }
+  
+  .tabla-productos th:nth-child(5),
+  .tabla-productos td:nth-child(5) {
+    width: 10%;
+    text-align: center;
+  }
+  
+  /* Header más compacto */
+  .card-header {
+    padding: 0.5rem;
+  }
+  
+  .btn-nuevo,
+  .btn-exportar {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.8rem;
+  }
+  
+  /* Panel de detalles más compacto */
+  .panel-visualizacion {
+    padding: 1rem;
+  }
+  
+  .detalle-seccion {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  /* Modal más ajustado */
+  .modal-content {
+    max-width: 95vw;
+  }
+}
+
+/* Ajustes para pantallas muy pequeñas */
+@media (max-width: 480px) {
+  .contenido {
+    padding: 0.5rem;
+  }
+  
+  .tabla-productos {
+    font-size: 0.8rem;
+  }
+  
+  .tabla-productos th,
+  .tabla-productos td {
+    padding: 0.4rem;
+  }
+  
+  /* Ocultamos otra columna si es necesario */
+  .tabla-productos th:nth-child(4),
+  .tabla-productos td:nth-child(4) {
+    display: none;
+  }
+  
+  /* Paginación en columna */
+  .paginacion {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .btn-pag {
+    width: 100%;
+  }
+  
+  /* Modal más compacto */
+  .modal-body {
+    padding: 1rem;
+  }
+  
+  .modal-footer {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .modal-footer .btn {
+    width: 100%;
+  }
+  
+  /* Botones header apilados */
+  .botones-header {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .btn-nuevo,
+  .btn-exportar {
+    width: 100%;
+    justify-content: center;
+  }
+}
 </style>

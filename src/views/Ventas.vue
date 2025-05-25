@@ -1,5 +1,6 @@
 <template>
   <Navbar />
+
   <div class="container mt-4">
     <!-- ENCABEZADO -->
     <div class="mb-4">
@@ -11,7 +12,12 @@
     <div class="card mb-5 shadow-sm rounded-3">
       <div class="card-body">
         <h5 class="card-title text-primary fw-semibold">Catálogo de productos y servicios</h5>
-        <input v-model="busqueda" type="text" class="form-control mb-3" placeholder="Buscar por nombre o código..." />
+        <input
+          v-model="busqueda"
+          type="text"
+          class="form-control mb-3"
+          placeholder="Buscar por nombre o código..."
+        />
 
         <table class="table table-bordered table-sm table-hover align-middle text-center">
           <thead class="table-light">
@@ -27,7 +33,7 @@
           <tbody>
             <tr
               v-for="(producto, i) in productosPaginados"
-              :key="i"
+              :key="producto.codigo"
               :class="{ 'text-decoration-line-through text-muted': producto.stock === 0 }"
             >
               <td>{{ producto.codigo }}</td>
@@ -39,7 +45,7 @@
                 <button
                   class="btn btn-outline-success btn-sm"
                   @click="agregarAlTicket(producto)"
-                  :disabled="producto.stock === 0"
+                  :disabled="producto.tipo==='Producto' && producto.stock===0"
                 >
                   <i class="material-icons">add_shopping_cart</i>
                 </button>
@@ -69,7 +75,7 @@
     </div>
 
     <!-- TICKET Y RESUMEN -->
-    <div v-if="ticket.length > 0" class="row mb-4 fade-in-ticket">
+    <div v-if="ticket.length" class="row mb-4 fade-in-ticket">
       <!-- TICKET -->
       <div class="col-md-8 mb-3">
         <div class="card h-100 shadow-sm rounded-3">
@@ -87,10 +93,12 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(item, index) in ticketPaginado" :key="index">
+                <tr v-for="(item, idx) in ticketPaginado" :key="item.codigo + '-' + idx">
                   <td>{{ item.nombre }}</td>
                   <td class="text-center">
+                    <span v-if="item.tipo === 'Servicio'">1</span>
                     <input
+                      v-else
                       type="number"
                       min="1"
                       class="form-control form-control-sm text-center"
@@ -111,7 +119,15 @@
                   </td>
                   <td class="text-center">${{ calcularTotalLinea(item) }}</td>
                   <td class="text-center">
-                    <button class="btn btn-danger btn-sm" @click="eliminarItem(index)">
+                    <div v-if="item.tipo === 'Servicio' && mascotasCliente.length">
+                      <select v-model="item.mascota_id" class="form-select form-select-sm">
+                        <option disabled value="">Selecciona mascota</option>
+                        <option v-for="m in mascotasCliente" :key="m.id" :value="m.id">
+                          {{ m.nombre }} ({{ m.especie }})
+                        </option>
+                      </select>
+                    </div>
+                    <button class="btn btn-danger btn-sm mt-1" @click="eliminarItem(idx)">
                       <i class="material-icons">delete</i>
                     </button>
                   </td>
@@ -141,7 +157,7 @@
       </div>
 
       <!-- RESUMEN -->
-      <div class="col-md-4">
+<div class="col-md-4">
   <div class="card h-100 shadow-sm rounded-3 resumen-card">
     <div class="card-body">
       <h5 class="card-title text-primary fw-semibold">Resumen</h5>
@@ -150,58 +166,52 @@
       <div class="accordion mb-3" id="accordionResumen">
         <div class="accordion-item">
           <h6 class="accordion-header">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#clienteCollapse">
+            <button
+              class="accordion-button collapsed"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#clienteCollapse"
+            >
               Datos del cliente
             </button>
           </h6>
-          <div id="clienteCollapse" class="accordion-collapse collapse" data-bs-parent="#accordionResumen">
+          <div
+            id="clienteCollapse"
+            class="accordion-collapse collapse"
+            data-bs-parent="#accordionResumen"
+          >
             <div class="accordion-body">
-              <div class="mb-2">
-                <label class="form-label">Nombre del cliente:</label>
-                <input v-model="cliente" type="text" class="form-control" placeholder="Obligatorio" />
-              </div>
-              <div class="mb-2">
-                <label class="form-label">Teléfono:</label>
-                <input v-model="clienteTelefono" type="tel" class="form-control" placeholder="Opcional" />
-              </div>
-              <div class="mb-2">
-                <label class="form-label">Email:</label>
-                <input v-model="clienteEmail" type="email" class="form-control" placeholder="Opcional" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Sección Mascota -->
-        <div v-if="hayServicioEnTicket" class="accordion-item">
-          <h6 class="accordion-header">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#mascotaCollapse">
-              Datos de la mascota
-            </button>
-          </h6>
-          <div id="mascotaCollapse" class="accordion-collapse collapse" data-bs-parent="#accordionResumen">
-            <div class="accordion-body">
-              <div class="mb-2">
-                <label class="form-label">Nombre de la mascota:</label>
-                <input v-model="mascotaNombre" type="text" class="form-control" placeholder="Ej. Luna" />
-              </div>
-              <div class="mb-2">
-                <label class="form-label">Edad:</label>
-                <div class="input-group">
-                  <input v-model.number="mascotaEdad" type="number" min="0" class="form-control" />
-                  <select v-model="mascotaUnidadEdad" class="form-select">
-                    <option value="meses">Meses</option>
-                    <option value="años">Años</option>
-                  </select>
-                </div>
-              </div>
-              <div class="mb-2">
-                <label class="form-label">Especie:</label>
-                <input v-model="mascotaEspecie" type="text" class="form-control" placeholder="Ej. perro, gato..." />
-              </div>
-              <div class="mb-2">
-                <label class="form-label">Raza:</label>
-                <input v-model="mascotaRaza" type="text" class="form-control" />
+              <div class="d-flex align-items-center gap-2 flex-wrap mb-3">
+                <select
+                  v-model="selectedClienteId"
+                  class="form-select flex-grow-1"
+                  aria-label="Selecciona cliente"
+                >
+                  <option disabled value="">-- Selecciona cliente --</option>
+                  <option
+                    v-for="c in clientes"
+                    :key="c.id"
+                    :value="c.id"
+                  >
+                    {{ c.nombre }}
+                  </option>
+                </select>
+                <button
+                  class="btn btn-outline-primary"
+                  type="button"
+                  @click="openClienteModal"
+                >
+                  <i class="material-icons">add</i>
+                </button>
+                <button
+                  v-if="selectedClienteId"
+                  class="btn btn-outline-primary"
+                  type="button"
+                  @click="openMascotaModal"
+                  title="Agregar mascota"
+                >
+                  <i class="material-icons">pets</i>
+                </button>
               </div>
             </div>
           </div>
@@ -210,15 +220,28 @@
         <!-- Sección Venta -->
         <div class="accordion-item">
           <h6 class="accordion-header">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#ventaCollapse">
+            <button
+              class="accordion-button collapsed"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#ventaCollapse"
+            >
               Detalles de la venta
             </button>
           </h6>
-          <div id="ventaCollapse" class="accordion-collapse collapse" data-bs-parent="#accordionResumen">
+          <div
+            id="ventaCollapse"
+            class="accordion-collapse collapse"
+            data-bs-parent="#accordionResumen"
+          >
             <div class="accordion-body">
               <div class="mb-2">
                 <label class="form-label">Observaciones:</label>
-                <input v-model="observaciones" type="text" class="form-control" />
+                <input
+                  v-model="observaciones"
+                  type="text"
+                  class="form-control"
+                />
               </div>
               <div class="mb-3">
                 <label class="form-label">Método de pago:</label>
@@ -241,18 +264,237 @@
       <h5><strong>Total a pagar:</strong> <span class="text-success">${{ total }}</span></h5>
     </div>
   </div>
-      </div>
+</div>
 
     </div>
 
     <!-- BOTONES DE ACCIÓN -->
-    <div v-if="ticket.length > 0" class="d-flex gap-3 justify-content-end mb-5 fade-in-ticket">
+    <div
+      v-if="ticket.length"
+      class="d-flex gap-3 justify-content-end mb-5 fade-in-ticket"
+    >
       <button class="btn btn-primary" @click="guardarVenta">
         <i class="material-icons me-1">check_circle</i> Guardar venta
       </button>
       <button class="btn btn-outline-danger" @click="cancelarVenta">
         <i class="material-icons me-1">cancel</i> Cancelar
       </button>
+    </div>
+  </div>
+
+  <!-- Modal para crear cliente -->
+  <div
+    class="modal fade"
+    id="clienteModal"
+    tabindex="-1"
+    aria-labelledby="clienteModalLabel"
+    aria-hidden="true"
+  >
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="clienteModalLabel">Nuevo Cliente</h5>
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="modal"
+            aria-label="Cerrar"
+          ></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Nombre completo</label>
+            <input
+              v-model="clienteForm.nombre"
+              type="text"
+              class="form-control"
+              placeholder="Ej. Juan Pérez"
+            />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Teléfono</label>
+            <input
+              v-model="clienteForm.telefono"
+              type="tel"
+              class="form-control"
+              placeholder="Opcional"
+            />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Email</label>
+            <input
+              v-model="clienteForm.correo"
+              type="email"
+              class="form-control"
+              placeholder="Opcional"
+            />
+          </div>
+          <div class="form-check mb-3">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="tieneMascota"
+              v-model="clienteForm.tieneMascota"
+            />
+            <label class="form-check-label" for="tieneMascota">
+              ¿Tiene mascota?
+            </label>
+          </div>
+
+          <div
+            v-if="clienteForm.tieneMascota"
+            class="border p-3 rounded"
+          >
+            <div class="mb-3">
+              <label class="form-label">Nombre mascota</label>
+              <input
+                v-model="clienteForm.mascota.nombre"
+                type="text"
+                class="form-control"
+                placeholder="Ej. Luna"
+              />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Especie</label>
+              <input
+                v-model="clienteForm.mascota.especie"
+                type="text"
+                class="form-control"
+                placeholder="Ej. Perro"
+              />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Edad</label>
+              <div class="input-group">
+                <input
+                  v-model.number="clienteForm.mascota.edad"
+                  type="number"
+                  min="0"
+                  class="form-control"
+                />
+                <select
+                  v-model="clienteForm.mascota.unidad_edad"
+                  class="form-select"
+                >
+                  <option value="años">Años</option>
+                  <option value="meses">Meses</option>
+                </select>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Raza</label>
+              <input
+                v-model="clienteForm.mascota.raza"
+                type="text"
+                class="form-control"
+                placeholder="Opcional"
+              />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-bs-dismiss="modal"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            @click="guardarCliente"
+          >
+            Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para agregar mascota -->
+  <div
+    class="modal fade"
+    id="mascotaModal"
+    tabindex="-1"
+    aria-labelledby="mascotaModalLabel"
+    aria-hidden="true"
+  >
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="mascotaModalLabel">Agregar Mascota</h5>
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="modal"
+            aria-label="Cerrar"
+          ></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Nombre</label>
+            <input
+              v-model="nuevaMascota.nombre"
+              type="text"
+              class="form-control"
+              placeholder="Ej. Luna"
+            />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Especie</label>
+            <input
+              v-model="nuevaMascota.especie"
+              type="text"
+              class="form-control"
+              placeholder="Ej. Perro"
+            />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Edad</label>
+            <div class="input-group">
+              <input
+                v-model.number="nuevaMascota.edad"
+                type="number"
+                min="0"
+                class="form-control"
+              />
+              <select
+                v-model="nuevaMascota.unidad_edad"
+                class="form-select"
+              >
+                <option value="años">Años</option>
+                <option value="meses">Meses</option>
+              </select>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Raza</label>
+            <input
+              v-model="nuevaMascota.raza"
+              type="text"
+              class="form-control"
+              placeholder="Opcional"
+            />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-bs-dismiss="modal"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            @click="guardarMascota"
+          >
+            Guardar
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -266,45 +508,75 @@ import Swal from 'sweetalert2'
 export default {
   name: 'Ventas',
   components: { Navbar },
+
   data() {
-  return {
-    busqueda: '',
-    // Datos del cliente
-    cliente: '',
-    clienteTelefono: '',
-    clienteEmail: '',
-    // Datos de la mascota (si hay servicio)
-    mascotaNombre: '',
-    mascotaEdad: '',
-    mascotaUnidadEdad: 'años',
-    mascotaEspecie: '',
-    mascotaRaza: '',
-    // Datos de la venta
-    observaciones: '',
-    metodoPago: 'efectivo',
-    usuarioId: 1, // o null si se obtiene dinámicamente al iniciar sesión
-    // Catálogo y ticket
-    productos: [],
-    ticket: [],
-    // Paginación
-    paginaCatalogo: 1,
-    productosPorPagina: 10,
-    paginaTicket: 1,
-    itemsPorTicket: 10
-  }
-},
-  mounted() {
-  this.cargarCatalogo()
-},
+    return {
+      busqueda: '',
+      // clientes y selección
+      clientes: [],
+      selectedClienteId: '',
+      mascotasCliente: [], // Mascotas del cliente seleccionado
+      clienteForm: {
+        nombre: '',
+        telefono: '',
+        correo: '',
+        tieneMascota: false,
+        mascota: {
+          nombre: '',
+          especie: '',
+          edad: 0,
+          unidad_edad: 'años',
+          raza: ''
+        }
+      },
+      // datos de mascota para la venta
+      mascotaNombre: '',
+      mascotaEdad: 0,
+      mascotaUnidadEdad: 'años',
+      mascotaEspecie: '',
+      mascotaRaza: '',
+      // venta
+      observaciones: '',
+      metodoPago: 'efectivo',
+      usuarioId: null,
+      // catálogo y ticket
+      productos: [],
+      ticket: [],
+      paginaCatalogo: 1,
+      productosPorPagina: 10,
+      paginaTicket: 1,
+      itemsPorTicket: 10,
+      // reloj
+      fecha: '',
+      hora: '',
+      intervalo: null,
+      // nueva mascota
+      nuevaMascota: {
+        nombre: '',
+        especie: '',
+        raza: '',
+        edad: 0,
+        unidad_edad: 'años'
+      }
+    }
+  },
+
   computed: {
+    clienteSeleccionado() {
+      return this.clientes.find(c => c.id === this.selectedClienteId) || {}
+    },
     productosFiltrados() {
       const filtro = this.busqueda.toLowerCase()
       return this.productos
-        .filter(p => p.nombre.toLowerCase().includes(filtro) || p.codigo.toLowerCase().includes(filtro))
+        .filter(
+          p =>
+            p.nombre.toLowerCase().includes(filtro) ||
+            (p.codigo && p.codigo.toLowerCase().includes(filtro))
+        )
         .sort((a, b) => {
-          const stockA = a.tipo === 'Servicio' ? 1 : (a.stock ?? 0)
-          const stockB = b.tipo === 'Servicio' ? 1 : (b.stock ?? 0)
-          return (stockB > 0) - (stockA > 0)
+          const stockA = a.tipo === 'Servicio' ? 1 : a.stock ?? 0
+          const stockB = b.tipo === 'Servicio' ? 1 : b.stock ?? 0
+          return Number(stockB > 0) - Number(stockA > 0)
         })
     },
     productosPaginados() {
@@ -322,13 +594,14 @@ export default {
       return Math.ceil(this.ticket.length / this.itemsPorTicket)
     },
     subtotal() {
-      return this.ticket.reduce((sum, item) => sum + (item.precio * item.cantidad), 0)
+      return this.ticket.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
     },
     descuentoTotal() {
-      return this.ticket.reduce((sum, item) => {
-        const descuento = item.precio * item.cantidad * (item.descuento / 100)
-        return sum + descuento
-      }, 0)
+      return this.ticket.reduce(
+        (sum, item) =>
+          sum + item.precio * item.cantidad * (item.descuento / 100),
+        0
+      )
     },
     total() {
       return (this.subtotal - this.descuentoTotal).toFixed(2)
@@ -337,344 +610,414 @@ export default {
       return this.ticket.some(item => item.tipo === 'Servicio')
     }
   },
-  methods: {
-      async cargarCatalogo() {
-    try {
-      const res = await fetch('http://localhost:8080/catalogo')
-      const data = await res.json()
-      this.productos = data
-    } catch (error) {
-      console.error('Error al cargar el catálogo:', error)
-      Swal.fire('Error', 'No se pudo cargar el catálogo.', 'error')
+
+  watch: {
+    selectedClienteId(newVal) {
+      this.cargarMascotasCliente(newVal)
+      // Limpiar selección de mascota en servicios del ticket al cambiar cliente
+      this.ticket.forEach(item => {
+        if (item.tipo === 'Servicio') item.mascota_id = ''
+      })
     }
   },
-  agregarAlTicket(producto) {
-  // Validar que el producto tenga ID y código
-  if (!producto.id || !producto.codigo) {
-    Swal.fire({
-      icon: 'error',
-      title: 'Error en producto',
-      text: 'El producto no tiene ID o código válido',
-      confirmButtonColor: '#7c245c'
-    });
-    return;
-  }
 
-  const ticketItem = this.ticket.find(item => item.id === producto.id);
-  const productoRef = this.productos.find(p => p.id === producto.id);
-  const esServicio = producto.tipo === 'Servicio';
+  async mounted() {
+    const token = localStorage.getItem('token')
+    if (!token) return this.$router.push('/login')
+    this.usuarioId = +localStorage.getItem('id_usuario')
+    await this.cargarClientes(token)
+    await this.cargarCatalogo(token)
+    this.actualizarReloj()
+    this.intervalo = setInterval(this.actualizarReloj, 1000)
+  },
 
-  if (ticketItem) {
-    if (esServicio || (productoRef?.stock && productoRef.stock > 0)) {
-      ticketItem.cantidad++;
-      if (!esServicio && productoRef) productoRef.stock--;
-    } else {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Sin stock',
-        text: `No hay suficiente stock de ${producto.nombre}`,
-        confirmButtonColor: '#7c245c'
-      });
-    }
-  } else {
-    this.ticket.push({
-      id: producto.id,
-      codigo: producto.codigo,
-      nombre: producto.nombre,
-      tipo: producto.tipo,
-      precio: parseFloat(producto.precio) || 0,
-      cantidad: 1,
-      descuento: 0
-    });
-    
-    if (!esServicio && productoRef) {
-      productoRef.stock--;
-    }
-  }
-}, 
-   // Método para calcular el total de una línea del ticket,
-    calcularTotalLinea(item) {
-      const total = item.precio * item.cantidad * (1 - item.descuento / 100)
-      return total.toFixed(2)
+  beforeUnmount() {
+    clearInterval(this.intervalo)
+  },
+
+  methods: {
+    actualizarReloj() {
+      const ahora = new Date()
+      this.fecha = ahora.toLocaleDateString('es-MX', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+      this.hora = ahora.toLocaleTimeString('es-MX')
     },
-    eliminarItem(index) {
-      const item = this.ticket[index]
-      const productoRef = this.productos.find(p => p.codigo === item.codigo)
-      if (productoRef && productoRef.stock !== undefined && item.tipo !== 'Servicio') {
-        productoRef.stock += item.cantidad
+
+    // clientes
+    async cargarClientes(token) {
+      try {
+        const res = await fetch('http://localhost:8080/api/clientes', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        this.clientes = await res.json()
+      } catch (e) {
+        console.error(e)
+        Swal.fire('Error', 'No se pudieron cargar los clientes', 'error')
       }
-      this.ticket.splice(index, 1)
     },
-async guardarVenta() {
-  // Validación inicial
-  if (this.ticket.length === 0) {
-    await Swal.fire({
-      icon: 'warning',
-      title: 'Ticket vacío',
-      text: 'No hay productos ni servicios en el ticket.',
-      confirmButtonColor: '#7c245c'
-    });
-    return;
-  }
+    openClienteModal() {
+      this.clienteForm = {
+        nombre: '',
+        telefono: '',
+        correo: '',
+        tieneMascota: false,
+        mascota: { nombre: '', especie: '', edad: 0, unidad_edad: 'años', raza: '' }
+      }
+      const modalEl = document.getElementById('clienteModal')
+      new bootstrap.Modal(modalEl).show()
+    },
+    async guardarCliente() {
+      // nuevos clientes
+      if (!this.clienteForm.nombre.trim()) {
+        return Swal.fire('Error', 'El nombre es obligatorio', 'error')
+      }
+      const token = localStorage.getItem('token')
+      try {
+        // crear cliente
+        const res1 = await fetch('http://localhost:8080/api/clientes', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            nombre: this.clienteForm.nombre,
+            telefono: this.clienteForm.telefono || null,
+            correo: this.clienteForm.correo || null
+          })
+        })
+        const nuevo = await res1.json()
+        this.clientes.push(nuevo)
+        this.selectedClienteId = nuevo.id
 
-  // Validar cliente (campo obligatorio)
-  if (!this.cliente || this.cliente.trim() === '') {
-    await Swal.fire({
-      icon: 'error',
-      title: 'Datos incompletos',
-      text: 'El nombre del cliente es obligatorio',
-      confirmButtonColor: '#7c245c'
-    });
-    return;
-  }
+        // si hay mascota
+        if (this.clienteForm.tieneMascota) {
+          await fetch('http://localhost:8080/api/mascotas', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              ...this.clienteForm.mascota,
+              cliente_id: nuevo.id
+            })
+          })
+        }
 
-  // Validar mascota si hay servicios
-  if (this.hayServicioEnTicket) {
-    if (!this.mascotaNombre || this.mascotaNombre.trim() === '') {
-      await Swal.fire({
-        icon: 'error',
-        title: 'Datos incompletos',
-        text: 'El nombre de la mascota es obligatorio para servicios',
-        confirmButtonColor: '#7c245c'
-      });
-      return;
-    }
-    if (!this.mascotaEspecie || this.mascotaEspecie.trim() === '') {
-      await Swal.fire({
-        icon: 'error',
-        title: 'Datos incompletos',
-        text: 'La especie de la mascota es obligatoria para servicios',
-        confirmButtonColor: '#7c245c'
-      });
-      return;
-    }
-  }
+        bootstrap.Modal.getInstance(
+          document.getElementById('clienteModal')
+        ).hide()
+        Swal.fire('Éxito', 'Cliente registrado', 'success')
+      } catch (e) {
+        console.error(e)
+        Swal.fire('Error', 'No se pudo registrar el cliente', 'error')
+      }
+    },
+    async cargarMascotasCliente(clienteId) {
+      if (!clienteId) {
+        this.mascotasCliente = []
+        return
+      }
+      try {
+        const token = localStorage.getItem('token')
+        const res = await fetch(`http://localhost:8080/api/clientes/${clienteId}/mascotas`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        this.mascotasCliente = await res.json()
+      } catch (e) {
+        console.error(e)
+        this.mascotasCliente = []
+      }
+    },
 
-  // Validar items del ticket
-  for (const [index, item] of this.ticket.entries()) {
-    if (!item.id) {
-      await Swal.fire({
-        icon: 'error',
-        title: 'Error en el ticket',
-        html: `El item <strong>${item.nombre}</strong> no tiene ID válido`,
-        confirmButtonColor: '#7c245c'
-      });
-      return;
-    }
-    
-    if (item.tipo === 'Producto' && (!item.cantidad || item.cantidad <= 0)) {
-      await Swal.fire({
-        icon: 'error',
-        title: 'Error en el ticket',
-        html: `El producto <strong>${item.nombre}</strong> no tiene cantidad válida`,
-        confirmButtonColor: '#7c245c'
-      });
-      return;
-    }
-  }
+    // catálogo
+    async cargarCatalogo(token) {
+      try {
+        const res = await fetch('http://localhost:8080/api/catalogo', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        this.productos = await res.json()
+      } catch (e) {
+        console.error(e)
+        Swal.fire('Error', 'No se pudo cargar el catálogo.', 'error')
+      }
+    },
 
-  // Confirmación de la venta
-  const confirm = await Swal.fire({
-    title: '¿Confirmar venta?',
-    html: `<div style="text-align:left;">
-             <p><strong>Cliente:</strong> ${this.cliente}</p>
-             ${this.hayServicioEnTicket ? `<p><strong>Mascota:</strong> ${this.mascotaNombre} (${this.mascotaEspecie})</p>` : ''}
-             <p><strong>Total:</strong> $${this.total}</p>
-             <p><strong>Método de pago:</strong> ${this.metodoPago}</p>
-           </div>`,
-    icon: 'question',
-    showCancelButton: true,
-    confirmButtonText: 'Confirmar',
-    cancelButtonText: 'Cancelar',
-    confirmButtonColor: '#7c245c',
-    cancelButtonColor: '#aaa'
-  });
+    agregarAlTicket(producto) {
+      const esServicio = producto.tipo === 'Servicio'
+      if (esServicio) {
+        // Los servicios siempre se agregan como una nueva línea, cantidad fija en 1
+        this.ticket.push({
+          id: producto.id, // <-- importante para el backend
+          codigo: producto.codigo,
+          nombre: producto.nombre,
+          tipo: producto.tipo,
+          precio: producto.precio,
+          cantidad: 1,
+          descuento: 0,
+          mascota_id: '' // Para seleccionar mascota
+        })
+      } else {
+        const existe = this.ticket.find(i => i.codigo === producto.codigo)
+        if (existe) {
+          if (producto.stock > 0) {
+            existe.cantidad++
+            producto.stock--
+          } else {
+            Swal.fire('Sin stock', `No hay stock de ${producto.nombre}`, 'warning')
+          }
+        } else {
+          this.ticket.push({
+            id: producto.id, // <-- importante para el backend
+            codigo: producto.codigo,
+            nombre: producto.nombre,
+            tipo: producto.tipo,
+            precio: producto.precio,
+            cantidad: 1,
+            descuento: 0
+          })
+          if (producto.stock !== undefined) producto.stock--
+        }
+      }
+    },
 
-  if (!confirm.isConfirmed) return;
+    calcularTotalLinea(item) {
+      return (item.precio * item.cantidad * (1 - item.descuento / 100)).toFixed(2)
+    },
 
-  // Mostrar carga
-  Swal.fire({
-    title: 'Procesando venta...',
-    allowOutsideClick: false,
-    didOpen: () => {
-      Swal.showLoading();
-    }
-  });
+    eliminarItem(idx) {
+      const item = this.ticket[idx]
+      const prod = this.productos.find(p => p.codigo === item.codigo)
+      if (prod && prod.stock !== undefined && item.tipo !== 'Servicio') {
+        prod.stock += item.cantidad
+      }
+      this.ticket.splice(idx, 1)
+    },
 
-  try {
-    // Preparar payload con estructura correcta
-    const ventaPayload = {
-      cliente: this.cliente.trim(),
-      clienteTelefono: this.clienteTelefono.trim() || null,
-      clienteEmail: this.clienteEmail.trim() || null,
-      mascota: this.hayServicioEnTicket ? {
-        nombre: this.mascotaNombre.trim(),
-        especie: this.mascotaEspecie.trim(),
-        edad: this.mascotaEdad || 0,
-        unidad_edad: this.mascotaUnidadEdad,
-        raza: this.mascotaRaza.trim() || ''
-      } : null,
-      ticket: this.ticket.map(item => ({
-        id: item.id,
-        codigo: item.codigo, // Asegurar que el código va en el payload
-        nombre: item.nombre,
-        tipo: item.tipo,
-        precio: parseFloat(item.precio),
-        cantidad: item.tipo === 'Producto' ? parseInt(item.cantidad) : 1, // Servicios siempre cantidad 1
-      })),
-      total: parseFloat(this.total),
-      metodoPago: this.metodoPago,
-      observaciones: this.observaciones.trim() || null,
-      usuarioId: this.usuarioId || 1
-    };
+    async guardarVenta() {
+      if (!this.selectedClienteId) {
+        return Swal.fire('Error', 'Selecciona un cliente', 'error')
+      }
+      // Validar que cada servicio tenga mascota seleccionada si hay mascotas disponibles
+      const serviciosSinMascota = this.ticket.filter(i => i.tipo === 'Servicio' && this.mascotasCliente.length && !i.mascota_id)
+      if (serviciosSinMascota.length) {
+        return Swal.fire('Error', 'Selecciona una mascota para cada servicio', 'error')
+      }
+      const confirm = await Swal.fire({
+        title: '¿Confirmar venta?',
+        html: `
+          <p><strong>Cliente:</strong> ${this.clienteSeleccionado.nombre}</p>
+          <p><strong>Total:</strong> $${this.total}</p>
+          <p><strong>Método de pago:</strong> ${this.metodoPago}</p>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Confirmar'
+      })
+      if (!confirm.isConfirmed) return
 
-    const res = await fetch('http://localhost:8080/ventas', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(ventaPayload)
-    });
+      const token = localStorage.getItem('token')
+      // Armar payload según requerimiento
+      let mascotaVentaId = null
+      const primerServicioConMascota = this.ticket.find(i => i.tipo === 'Servicio' && i.mascota_id)
+      if (primerServicioConMascota) {
+        mascotaVentaId = primerServicioConMascota.mascota_id
+      }
+      const payload = {
+        cliente_id: this.selectedClienteId,
+        mascota_id: mascotaVentaId,
+        usuario_id: this.usuarioId,
+        observaciones: this.observaciones,
+        metodo_pago: this.metodoPago,
+        productos: this.ticket
+          .filter(i => i.tipo === 'Producto')
+          .map(i => ({
+            producto_id: i.id,
+            cantidad: i.cantidad,
+            precio_unitario: i.precio
+          })),
+        servicios: this.ticket
+          .filter(i => i.tipo === 'Servicio')
+          .map(i => ({
+            servicio_id: i.id,
+            precio_unitario: i.precio
+          }))
+      }
 
-    const responseData = await res.json();
+      try {
+        // 1. POST venta
+        const res = await fetch('http://localhost:8080/api/ventas', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          const detalle = data.detalle ? ' – ' + data.detalle : ''
+          throw new Error((data.error || 'Error al guardar venta') + detalle)
+        }
+        // 2. Actualizar stock de productos vendidos
+        for (const prod of payload.productos) {
+          await fetch(`http://localhost:8080/api/productos/${prod.producto_id}/stock`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ cantidad: prod.cantidad })
+          })
+        }
+        // 3. Éxito: mostrar, PDF, limpiar, recargar catálogo
+        Swal.fire('¡Listo!', 'Venta #' + data.venta_id + ' registrada', 'success')
+        this.generarPDF()
+        this.cancelarVenta()
+        await this.cargarCatalogo(token)
+      } catch (err) {
+        console.error(err)
+        Swal.fire('Error al registrar venta', err.message, 'error')
+      }
+    },
 
-    if (!res.ok) {
-      throw new Error(responseData.error || 'Error al procesar la venta');
-    }
-
-    // Éxito
-    Swal.fire({
-      icon: 'success',
-      title: 'Venta registrada',
-      html: `<p>Venta #${responseData.ventaId} registrada correctamente</p>
-             <p><strong>Total:</strong> $${this.total}</p>`,
-      confirmButtonColor: '#7c245c'
-    });
-
-    this.generarPDF();
-    this.cancelarVenta();
-
-  } catch (error) {
-    console.error('Error:', error);
-    Swal.fire({
-      icon: 'error',
-      title: 'Error al guardar',
-      html: `<div style="text-align:left;">
-               <p><strong>Error:</strong> ${error.message}</p>
-               <p>Revisa la consola para más detalles.</p>
-             </div>`,
-      confirmButtonColor: '#7c245c'
-    });
-  }
-},
     cancelarVenta() {
       this.ticket.forEach(item => {
-        const productoRef = this.productos.find(p => p.codigo === item.codigo)
-        if (productoRef && productoRef.stock !== undefined && item.tipo !== 'Servicio') {
-          productoRef.stock += item.cantidad
+        if (item.tipo === 'Producto') {
+          const prod = this.productos.find(p => p.id === item.id)
+          prod.stock += item.cantidad
         }
       })
       this.ticket = []
-      this.cliente = ''
-      this.clienteTelefono = ''
-      this.clienteEmail = ''
+      this.selectedClienteId = ''
       this.mascotaNombre = ''
       this.mascotaEspecie = ''
       this.mascotaRaza = ''
+      this.mascotaEdad = 0
+      this.mascotaUnidadEdad = 'años'
       this.observaciones = ''
       this.metodoPago = 'efectivo'
     },
+
     generarPDF() {
-      if (this.ticket.length === 0) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'Sin productos',
-          text: 'Agrega al menos un producto al ticket antes de generar el PDF.',
-          confirmButtonColor: '#7c245c'
-        })
-        return
-      }
-
       const doc = new jsPDF()
-
-      // Encabezado
       doc.setFontSize(18)
-      doc.setTextColor(33, 37, 41)
       doc.text('Paw Friend Veterinaria', 14, 20)
-
       doc.setFontSize(11)
-      doc.setTextColor(100)
-      doc.text('Calle Independencia 123, Oaxaca de Juárez', 14, 26)
-      doc.text('Tel: 951-123-4567', 14, 31)
-
-      doc.setTextColor(33, 37, 41)
       doc.text(`Fecha: ${new Date().toLocaleDateString('es-MX')}`, 150, 20)
-      doc.text(`Hora: ${new Date().toLocaleTimeString('es-MX')}`, 150, 26)
-      doc.text(`Cliente: ${this.cliente}`, 14, 38)
-      if (this.clienteTelefono) doc.text(`Teléfono: ${this.clienteTelefono}`, 14, 43)
-      if (this.clienteEmail) doc.text(`Email: ${this.clienteEmail}`, 14, 48)
+      doc.text(`Cliente: ${this.clienteSeleccionado.nombre}`, 14, 38)
       if (this.hayServicioEnTicket) {
-        doc.text(`Mascota: ${this.mascotaNombre}`, 14, 53)
-        doc.text(`Especie: ${this.mascotaEspecie} - Raza: ${this.mascotaRaza}`, 14, 58)
+        doc.text(`Mascota: ${this.mascotaNombre}`, 14, 44)
+        doc.text(`Especie: ${this.mascotaEspecie}`, 14, 50)
       }
-
-      // Tabla de productos
       autoTable(doc, {
-        startY: this.hayServicioEnTicket ? 65 : 50,
-        head: [['Producto', 'Cantidad', 'Precio', 'Descuento', 'Total']],
+        startY: this.hayServicioEnTicket ? 60 : 50,
+        head: [['Producto', 'Cant.', 'Precio', 'Descuento', 'Total']],
         body: this.ticket.map(item => [
           item.nombre,
           item.cantidad,
           `$${item.precio}`,
           `${item.descuento}%`,
           `$${this.calcularTotalLinea(item)}`
-        ]),
-        headStyles: {
-          fillColor: [124, 36, 92],
-          halign: 'center'
-        },
-        styles: {
-          fontSize: 10,
-          cellPadding: 4
-        }
+        ])
       })
-
-      // Totales
       const finalY = doc.lastAutoTable.finalY + 10
-      doc.setFontSize(11)
       doc.text(`Subtotal: $${this.subtotal}`, 150, finalY)
-      doc.text(`Descuento total: $${this.descuentoTotal}`, 150, finalY + 6)
-      doc.setFontSize(13)
-      doc.text(`Total a pagar: $${this.total}`, 150, finalY + 14)
-
-      doc.save(`Ticket_${new Date().getTime()}.pdf`)
+      doc.text(`Total a pagar: $${this.total}`, 150, finalY + 6)
+      doc.save(`Ticket_${Date.now()}.pdf`)
     },
+
     actualizarTotales() {
       this.ticket = [...this.ticket]
+    },
+
+    // mascotas
+    openMascotaModal() {
+      if (!this.selectedClienteId) {
+        return Swal.fire('Error', 'Selecciona un cliente primero', 'error')
+      }
+      this.nuevaMascota = {
+        nombre: '',
+        especie: '',
+        edad: 0,
+        unidad_edad: 'años',
+        raza: ''
+      }
+      const modalEl = document.getElementById('mascotaModal')
+      new bootstrap.Modal(modalEl).show()
+    },
+    async guardarMascota() {
+      if (!this.nuevaMascota.nombre.trim() || !this.nuevaMascota.especie.trim()) {
+        return Swal.fire('Error', 'Nombre y especie son obligatorios', 'error')
+      }
+      try {
+        const token = localStorage.getItem('token')
+        await fetch(`http://localhost:8080/api/mascotas`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            ...this.nuevaMascota,
+            cliente_id: this.selectedClienteId
+          })
+        })
+        await this.cargarMascotasCliente(this.selectedClienteId)
+        bootstrap.Modal.getInstance(document.getElementById('mascotaModal')).hide()
+        Swal.fire('Éxito', 'Mascota agregada', 'success')
+      } catch (e) {
+        console.error(e)
+        Swal.fire('Error', 'No se pudo agregar la mascota', 'error')
+      }
     }
   }
 }
 </script>
 
-
 <style scoped>
+:root {
+  --color-primario: #7c245c;
+  --color-secundario: #cc8bab;
+  --color-acento: #7c1454;
+  --color-suave: #a45484;
+  --color-claro: #f4f4f9;
+  --color-texto: #222;
+  --color-blanco: #ffffff;
+  --color-error: #b00020;
+  --color-stock-bajo: #ffe3f0;
+}
+
 .container {
   font-family: 'Nunito Sans', sans-serif;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1rem;
 }
 
 .card {
   border: none;
   border-radius: 12px;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--color-blanco);
 }
 
-.card-title {
-  color: #7c245c;
-  font-weight: bold;
+.card-title,
+h5.text-primary {
+  color: white !important;
 }
 
 .table {
+  width: 100%;
+  min-width: 600px;
   background-color: #fff;
   border-radius: 8px;
   overflow: hidden;
@@ -686,36 +1029,23 @@ async guardarVenta() {
   color: #7c245c;
   font-weight: bold;
 }
-.table th, .table td {
+
+.table th,
+.table td {
   color: #222;
-}
-
-.btn-paginacion {
-  border-radius: 20px;
-  font-weight: 600;
-  color: #ffffff;
-  border-color: #dee2e6;
-}
-
-.table-sm td,
-.table-sm th {
+  text-align: center;
   padding: 0.75rem;
-  vertical-align: middle;
 }
 
-.btn {
-  border-radius: 30px;
-  font-weight: 600;
-  background-color: #7c245c;
-  color: #ffffff;
-}
-.btn:hover {
-  background-color: #a53f72;
+.table-hover tbody tr:hover {
+  background-color: #fdf0f6;
+  transition: background-color 0.2s ease-in-out;
 }
 
-input.form-control,
-select.form-select {
-  border-radius: 10px;
+.table tbody tr.sin-stock {
+  background-color: var(--color-stock-bajo);
+  color: #888;
+  text-decoration: line-through;
 }
 
 .text-muted {
@@ -726,99 +1056,247 @@ select.form-select {
   font-family: 'Nunito Sans', sans-serif !important;
 }
 
-.fade-in-ticket {
-  animation: fadeInTicket 0.7s cubic-bezier(0.4,0,0.2,1);
-}
-@keyframes fadeInTicket {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.ticket-card, .resumen-card {
-  border: 1.5px solid #d1c4e9;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(124,36,92,0.08);
-}
-.ticket-table th, .ticket-table td {
-  background: #fff;
-  color: #222;
-  border-bottom: 1px solid #e9e9e9;
-}
-.ticket-table thead th {
-  background: #f3e4ec;
-  color: #7c245c;
-  font-weight: bold;
-}
-.resumen-card label,
-.resumen-card p,
-.resumen-card h5 {
-  color: #222 !important;
-}
-.resumen-num {
-  color: #7c245c;
-  font-weight: bold;
-  font-size: 1.1em;
-}
-.btn, .btn-sm, .btn-success, .btn-danger, .btn-outline-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4em;
-}
-.btn .material-icons,
-.btn-sm .material-icons {
-  vertical-align: middle;
-  font-size: 1.1em;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.btn.btn-success.btn-sm {
-  justify-content: center;
-  align-items: center;
-  padding: 0.35rem 0.7rem;
+input.form-control,
+select.form-select {
+  border-radius: 10px;
+  color: var(--color-texto);
+  width: 100%;
 }
 
-/* ✅ CAMBIOS A SOLICITUD */
-
-/* Evita títulos azules (ej. "Ticket actual") */
-.card-title {
-  color: #ffffff !important;
-}
-
-/* Botones outline-primary con borde y texto blanco */
-.btn-outline-primary {
-  color: #ffffff;
-  border-color: #ffffff;
-}
-.btn-outline-primary:hover {
-  background-color: #ffffff;
-  color: #7c245c;
-}
-
-/* Evita contorno azul al enfocar */
-.btn:focus,
-.btn-outline-primary:focus,
-input:focus,
-select:focus {
-  outline: none;
-  box-shadow: 0 0 0 0.2rem rgba(255, 255, 255, 0.4);
-}
-
-/* Íconos blancos también */
-.btn .material-icons,
-.btn-sm .material-icons {
-  color: #ffffff;
+input.form-control::placeholder,
+select.form-select::placeholder {
+  color: #999;
+  font-style: italic;
 }
 
 input.form-control:focus,
 select.form-select:focus {
-  border-color: #7c1454; 
+  border-color: var(--color-acento);
   box-shadow: 0 0 0 0.2rem rgba(124, 20, 84, 0.25);
   outline: none;
 }
 
-select.form-select {
+.btn {
+  border-radius: 100px;
+  font-weight: 600;
+  background-color: var(--color-primario);
+  color: var(--color-blanco);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  transition: background 0.2s ease-in-out;
+  white-space: nowrap;
+  padding: 0.5rem 1.2rem;
+}
+
+.btn:hover {
+  background-color: var(--color-suave);
+}
+
+.btn-outline-primary {
+  background-color: transparent;
+  border: 2px solid var(--color-acento);
+  color: var(--color-acento);
+}
+
+.btn-outline-primary:hover {
+  background-color: var(--color-acento);
+  color: var(--color-blanco);
+}
+
+.btn-outline-danger {
+  border: 2px solid darkred;
+  background-color: transparent;
+  color: darkred;
+}
+
+.btn-outline-danger:hover {
+  background-color: darkred;
+  color: var(--color-blanco);
+}
+
+.btn-secondary {
+  background-color: var(--color-primario);
+  color: var(--color-blanco);
+  border: none;
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-suave);
+}
+
+.btn-sm {
+  padding: 0.4rem 0.7rem;
+}
+
+.btn-accion {
+  background-color: var(--color-acento);
+  border: none;
+  color: white;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: background 0.2s ease-in-out;
+}
+
+.btn-accion:hover {
+  background-color: var(--color-suave);
+}
+
+.btn-accion.eliminar {
+  background-color: darkred;
+}
+
+.btn-accion.eliminar:hover {
+  background-color: #b22222;
+}
+
+.accordion-button:not(.collapsed) {
+  background-color: #a45484;
+  color: white;
+}
+
+.accordion-button:hover {
+  background-color: #7c245c;
+  color: white;
+}
+
+.accordion-button:not(.collapsed)::after,
+.accordion-button:hover::after {
+  filter: brightness(0) invert(1);
+}
+
+.material-icons {
+  font-size: 22px;
+  vertical-align: middle;
+}
+
+.fade-in-ticket {
+  animation: fadeInTicket 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes fadeInTicket {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ticket-card,
+.resumen-card {
+  border: 1.5px solid #d1c4e9;
+  background: var(--color-blanco);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(124, 36, 92, 0.08);
+  margin-top: 1rem;
+  padding: 1rem;
+}
+
+.ticket-table th,
+.ticket-table td {
+  background: var(--color-blanco);
+  color: var(--color-texto);
+  border-bottom: 1px solid var(--color-claro);
+}
+
+.ticket-table thead th {
+  background: var(--color-secundario);
+  color: var(--color-blanco);
+  font-weight: bold;
+}
+
+.resumen-card label,
+.resumen-card h5 {
+  color: var(--color-texto) !important;
+}
+
+.resumen-card p {
   color: #222;
 }
+
+.resumen-card h5 span {
+  font-weight: bold;
+  font-size: 1.25rem;
+  color: #28a745;
+}
+
+.resumen-num {
+  color: var(--color-primario);
+  font-weight: bold;
+  font-size: 1.1em;
+}
+
+/* Responsividad */
+@media (max-width: 992px) {
+  .container {
+    padding: 0.75rem;
+  }
+
+  .ticket-card,
+  .resumen-card {
+    padding: 1rem;
+  }
+
+  .btn {
+    font-size: 0.95rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .table {
+    font-size: 0.9rem;
+    min-width: 100%;
+  }
+
+  .table th:nth-child(3),
+  .table td:nth-child(3) {
+    display: none;
+  }
+
+  .btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.9rem;
+  }
+
+  .btn-accion {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+
+  .ticket-card,
+  .resumen-card {
+    padding: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .table th,
+  .table td {
+    padding: 0.4rem;
+    font-size: 0.8rem;
+  }
+
+  .ticket-card,
+  .resumen-card {
+    padding: 0.6rem;
+  }
+
+  .btn {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+}
 </style>
+
+
 

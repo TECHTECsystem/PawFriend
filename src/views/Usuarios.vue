@@ -12,13 +12,6 @@
       <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
         <div class="d-flex gap-2 flex-wrap align-items-center">
           <input v-model="busqueda" type="text" class="form-control w-auto" placeholder="Buscar usuario..." style="max-width: 300px;" />
-          <button class="btn btn-outline-primary" @click="exportarCSV">
-            <span class="material-icons align-middle">download</span> Exportar CSV
-          </button>
-          <input ref="inputCSV" type="file" accept=".csv" style="display:none" @change="importarCSV" />
-          <button class="btn btn-outline-secondary" @click="$refs.inputCSV.click()">
-            <span class="material-icons align-middle">upload_file</span> Importar CSV
-          </button>
         </div>
         <button v-if="usuarioActual.rol === 'admin'" class="btn btn-success" @click="abrirModalNuevo">
           <span class="material-icons align-middle">add</span> Nuevo Usuario
@@ -29,19 +22,19 @@
           <table class="table mb-0">
             <thead>
               <tr>
+                <th>Id</th>
                 <th>Usuario</th>
                 <th>Email</th>
-                <th>Último acceso</th>
                 <th>Estatus</th>
                 <th v-if="usuarioActual.rol === 'admin'">Acciones</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="usuario in usuariosPaginados" :key="usuario.id" :class="{ 'table-active': usuarioSeleccionado && usuarioSeleccionado.id === usuario.id }">
-                <td>{{ usuario.username }}</td>
-                <td>{{ usuario.email }}</td>
-                <td>{{ usuario.ultimoAcceso || '-' }}</td>
-                <td>
+                <td class="text-center align-middle">{{ usuario.id }}</td>
+                <td class="text-center align-middle">{{ usuario.username }}</td>
+                <td class="text-center align-middle">{{ usuario.email }}</td>
+                <td class="text-center align-middle">
                   <span :class="usuario.activo ? 'badge bg-success' : 'badge bg-secondary'">
                     {{ usuario.activo ? 'Activo' : 'Inactivo' }}
                   </span>
@@ -95,13 +88,13 @@
                 <div class="mb-3">
                   <label class="form-label">Usuario generado *</label>
                   <div class="input-group">
-                    <input v-model="usuarioForm.username" class="form-control" readonly />
+                    <input v-model="usuarioForm.username" class="form-control" />
                     <button class="btn btn-outline-secondary" type="button" @click="generarCredenciales">Generar</button>
                   </div>
                 </div>
                 <div class="mb-3">
                   <label class="form-label">Contraseña generada *</label>
-                  <input v-model="usuarioForm.password" class="form-control" readonly />
+                  <input v-model="usuarioForm.password" class="form-control" />
                 </div>
                 <div class="mb-3">
                   <label class="form-label">Permisos *</label>
@@ -132,7 +125,7 @@
                 </div>
               </div>
               <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-secondary" @click="cerrarModal">Cancelar</button>
                 <button type="button" class="btn btn-info" @click="enviarCredenciales" :disabled="!puedeGuardar">
                   <span class="material-icons align-middle">send</span> Enviar credenciales
                 </button>
@@ -157,7 +150,7 @@
 <script>
 import Navbar from '../components/Navbar.vue';
 import Swal from 'sweetalert2';
-import * as Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import axios from 'axios';
 
 export default {
@@ -167,13 +160,13 @@ export default {
     return {
       usuarioActual: { rol: 'admin' },
       cargandoInicial: true,
-      usuarios: [], // Se cargan desde la API
+      usuarios: [],
       usuarioSeleccionado: null,
       modoEdicion: false,
       mostrarModal: false,
       usuarioForm: {
-        id: '', nombre: '', email: '', username: '', password: '',
-        permisos: [], activo: true, ultimoAcceso: ''
+        id: '', nombre: '', email: '', username: '',
+        password: '', permisos: [], activo: true, ultimoAcceso: ''
       },
       permisosDisponibles: [
         { id: 'ventas', descripcion: 'Gestión de ventas' },
@@ -229,7 +222,9 @@ export default {
         this.usuarioForm.email &&
         this.emailValido &&
         this.usuarioForm.username &&
-        this.usuarioForm.password &&
+        (
+          (!this.modoEdicion && this.usuarioForm.password) || this.modoEdicion
+        ) &&
         this.usuarioForm.permisos.length > 0
       );
     },
@@ -242,182 +237,231 @@ export default {
   },
   methods: {
     async cargarUsuarios() {
-    try {
-      const res = await axios.get('http://localhost:8080/usuarios');
-      this.usuarios = res.data.map(usuario => ({
-        ...usuario,
-        permisos: this.obtenerPermisosDesdeRol(usuario.rol)
-      }));
-    } catch (err) {
-      console.error('Error al cargar usuarios:', err);
-      Swal.fire('Error', 'No se pudieron cargar los usuarios', 'error');
-    } finally {
-      this.cargandoInicial = false;
-    }
-  },
-  obtenerPermisosDesdeRol(rol) {
-    if (rol === 'administrador') {
-      return this.permisosDisponibles.map(p => p.id);
-    } else if (rol === 'empleado') {
-      return ['ventas', 'productos', 'clientes'];
-    }
-    return [];
-  },
-  abrirModalNuevo() {
-    this.usuarioForm = {
-      id: '', nombre: '', email: '', username: '',
-      password: '', permisos: [], activo: true, ultimoAcceso: ''
-    };
-    this.modoEdicion = false;
-    this.submitted = false;
-    this.generarCredenciales();
-    this.$nextTick(() => {
-      const modal = new window.bootstrap.Modal(document.getElementById('modalUsuario'));
-      modal.show();
-    });
-  },
-  cerrarModal() {
-    const modal = window.bootstrap.Modal.getInstance(document.getElementById('modalUsuario'));
-    if (modal) modal.hide();
-    this.usuarioSeleccionado = null;
-    this.submitted = false;
-  },
-  generarCredenciales() {
-    const base = (this.usuarioForm.nombre || 'usuario').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const random = Math.floor(Math.random() * 10000);
-    this.usuarioForm.username = base.substring(0, 8) + random;
-    this.usuarioForm.password = Array(10).fill(0).map(() => String.fromCharCode(97 + Math.floor(Math.random() * 26))).join('');
-  },
-  async guardarUsuario() {
-    this.submitted = true;
-    if (!this.puedeGuardar) return;
-    this.cargando = true;
-    try {
-      const fecha = new Date();
-      const fechaStr = fecha.getFullYear() + '-' + String(fecha.getMonth()+1).padStart(2,'0') + '-' + String(fecha.getDate()).padStart(2,'0') + ' ' + String(fecha.getHours()).padStart(2,'0') + ':' + String(fecha.getMinutes()).padStart(2,'0');
-      this.usuarioForm.ultimoAcceso = fechaStr;
-
-      if (this.modoEdicion) {
-        await axios.put(`http://localhost:8080/usuarios/${this.usuarioForm.id}`, {
-          nombre: this.usuarioForm.nombre,
-          email: this.usuarioForm.email,
-          username: this.usuarioForm.username,
-          password: this.usuarioForm.password,
-          rol: 'empleado',
-          activo: this.usuarioForm.activo ? 1 : 0,
-          ultimo_acceso: this.usuarioForm.ultimoAcceso
-        });
-      } else {
-        const res = await axios.post('http://localhost:8080/usuarios', {
-          nombre: this.usuarioForm.nombre,
-          email: this.usuarioForm.email,
-          username: this.usuarioForm.username,
-          password: this.usuarioForm.password,
-          rol: 'empleado',
-          activo: this.usuarioForm.activo ? 1 : 0,
-          ultimo_acceso: this.usuarioForm.ultimoAcceso
-        });
-        this.usuarioForm.id = res.data.usuario.id ?? Date.now();
-      }
-
-      await this.cargarUsuarios();
-      Swal.fire('¡Guardado!', 'Usuario guardado correctamente', 'success');
-      this.cerrarModal();
-    } catch (e) {
-      console.error(e);
-      Swal.fire('Error', 'No se pudo guardar el usuario', 'error');
-    } finally {
-      this.cargando = false;
-    }
-  },
-  editarUsuario(usuario) {
-    this.usuarioForm = { ...usuario, permisos: [...(usuario.permisos || [])] };
-    this.modoEdicion = true;
-    this.submitted = false;
-    this.$nextTick(() => {
-      const modal = new window.bootstrap.Modal(document.getElementById('modalUsuario'));
-      modal.show();
-    });
-  },
-  async eliminarUsuario(usuario) {
-    const confirm = await Swal.fire({
-      title: '¿Eliminar usuario?',
-      text: 'No podrás revertir esto',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: 'var(--rojo)'
-    });
-    if (!confirm.isConfirmed) return;
-    this.cargando = true;
-    this.usuarioSeleccionado = usuario;
-    try {
-      await axios.delete(`http://localhost:8080/usuarios/${usuario.id}`);
-      await this.cargarUsuarios();
-      Swal.fire('Eliminado', 'Usuario eliminado', 'success');
-    } catch (e) {
-      console.error(e);
-      Swal.fire('Error', 'No se pudo eliminar el usuario', 'error');
-    } finally {
-      this.cargando = false;
-      this.usuarioSeleccionado = null;
-    }
-  },
-  toggleSeleccionarTodo() {
-    if (this.todosSeleccionados) {
-      this.usuarioForm.permisos = [];
-    } else {
-      this.usuarioForm.permisos = this.permisosDisponibles.map(p => p.id);
-    }
-  },
-  enviarCredenciales() {
-    Swal.fire({
-      toast: true,
-      position: 'top-end',
-      icon: 'info',
-      title: 'Credenciales enviadas (simulado)',
-      showConfirmButton: false,
-      timer: 2000
-    });
-  },
-  exportarCSV() {
-    const encabezados = ['id','nombre','email','username','password','permisos','activo','ultimoAcceso'];
-    const rows = this.usuarios.map(u => encabezados.map(h => Array.isArray(u[h]) ? u[h].join('|') : u[h] ?? '').join(','));
-    const csv = [encabezados.join(','), ...rows].join('\r\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'usuarios.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  },
-  importarCSV(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        this.usuarios = results.data.map((row, i) => ({
-          id: row.id || i+1,
-          nombre: row.nombre || '',
-          email: row.email || '',
-          username: row.username || '',
-          password: row.password || '',
-          permisos: row.permisos ? row.permisos.split('|') : [],
-          activo: row.activo === 'true' || row.activo === true,
-          ultimoAcceso: row.ultimoAcceso || ''
+      this.cargandoInicial = true;
+      try {
+        const res = await fetch('http://localhost:8080/api/usuarios');
+        if (!res.ok) throw new Error('No se pudo obtener la lista de usuarios');
+        const data = await res.json();
+        this.usuarios = data.map(u => ({
+          id: u.id,
+          nombre: u.nombre,
+          email: u.email,
+          username: u.username,
+          password: '', // nunca mostrar password
+          permisos: this.backendToPermisos(u),
+          activo: !!u.activo,
+          ultimoAcceso: u.ultimo_acceso || ''
         }));
-        Swal.fire('¡Importado!', 'Usuarios importados correctamente', 'success');
-        this.$refs.inputCSV.value = '';
+      } catch (e) {
+        console.error(e);
+        Swal.fire('Error', e.message || 'No se pudieron cargar los usuarios', 'error');
+      } finally {
+        this.cargandoInicial = false;
       }
-    });
+    },
+    backendToPermisos(u) {
+      const map = [
+        { key: 'ventas', field: 'permiso_ventas' },
+        { key: 'productos', field: 'permiso_productos' },
+        { key: 'clientes', field: 'permiso_clientes' },
+        { key: 'proveedores', field: 'permiso_proveedores' },
+        { key: 'servicios', field: 'permiso_servicios' },
+        { key: 'usuarios', field: 'permiso_admin_usuarios' }
+      ];
+      return map.filter(m => u[m.field]).map(m => m.key);
+    },
+    permisosToBackend(permisos) {
+      return {
+        permiso_ventas: permisos.includes('ventas') ? 1 : 0,
+        permiso_productos: permisos.includes('productos') ? 1 : 0,
+        permiso_clientes: permisos.includes('clientes') ? 1 : 0,
+        permiso_proveedores: permisos.includes('proveedores') ? 1 : 0,
+        permiso_servicios: permisos.includes('servicios') ? 1 : 0,
+        permiso_admin_usuarios: permisos.includes('usuarios') ? 1 : 0
+      };
+    },
+    abrirModalNuevo() {
+      this.usuarioForm = {
+        id: '', nombre: '', email: '', username: '',
+        password: '', permisos: [], activo: true, ultimoAcceso: ''
+      };
+      this.modoEdicion = false;
+      this.submitted = false;
+      this.generarCredenciales();
+      this.$nextTick(() => {
+        const modalEl = document.getElementById('modalUsuario');
+        if (!this.modalUsuario && modalEl) {
+          this.modalUsuario = new window.bootstrap.Modal(modalEl, { backdrop: true });
+        }
+        if (this.modalUsuario) this.modalUsuario.show();
+      });
+    },
+    cerrarModal() {
+      if (this.modalUsuario) this.modalUsuario.hide();
+      this.usuarioSeleccionado = null;
+      this.submitted = false;
+    },
+    generarCredenciales() {
+      const base = (this.usuarioForm.nombre || 'usuario').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const random = Math.floor(Math.random() * 10000);
+      this.usuarioForm.username = base.substring(0, 8) + random;
+      this.usuarioForm.password = Array(10).fill(0).map(() => String.fromCharCode(97 + Math.floor(Math.random() * 26))).join('');
+    },
+    async guardarUsuario() {
+      this.submitted = true;
+      if (!this.puedeGuardar) return;
+      this.cargando = true;
+      let success = false;
+      let errorMsg = '';
+      try {
+        if (this.modoEdicion) {
+          // Editar usuario usando PUT al backend
+          const body = {
+            nombre: this.usuarioForm.nombre,
+            email: this.usuarioForm.email,
+            username: this.usuarioForm.username,
+            activo: this.usuarioForm.activo ? 1 : 0,
+            ...this.permisosToBackend(this.usuarioForm.permisos)
+          };
+          // Solo incluir password si el usuario la escribió
+          if (this.usuarioForm.password && this.usuarioForm.password.trim() !== '') {
+            body.password = this.usuarioForm.password;
+          }
+          const res = await fetch(`http://localhost:8080/api/usuarios/${this.usuarioForm.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          if (!res.ok) throw new Error('No se pudo actualizar el usuario');
+          success = true;
+        } else {
+          // Agregar usuario nuevo usando POST al backend
+          const body = {
+            nombre: this.usuarioForm.nombre,
+            email: this.usuarioForm.email,
+            username: this.usuarioForm.username,
+            password: this.usuarioForm.password,
+            activo: this.usuarioForm.activo ? 1 : 0,
+            ...this.permisosToBackend(this.usuarioForm.permisos)
+          };
+          const res = await fetch('http://localhost:8080/api/usuarios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          if (!res.ok) throw new Error('No se pudo crear el usuario');
+          success = true;
+        }
+      } catch (e) {
+        errorMsg = e.message || 'No se pudo guardar el usuario';
+      } finally {
+        // --- Modal cleanup: cerrar modal y limpiar backdrop ---
+        if (this.modalUsuario) this.modalUsuario.hide();
+        document.body.classList.remove('modal-open');
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(b => b.parentNode && b.parentNode.removeChild(b));
+        // --- Recargar usuarios y limpiar formulario si es nuevo ---
+        await this.cargarUsuarios();
+        if (!this.modoEdicion) {
+          this.usuarioForm = {
+            id: '', nombre: '', email: '', username: '',
+            password: '', permisos: [], activo: true, ultimoAcceso: ''
+          };
+          this.generarCredenciales();
+        }
+        this.submitted = false;
+        this.cargando = false;
+        // --- Mostrar alerta ---
+        if (success) {
+          Swal.fire('¡Guardado!', 'Usuario guardado correctamente', 'success');
+        } else {
+          Swal.fire('Error', errorMsg, 'error');
+        }
+      }
+    },
+    editarUsuario(usuario) {
+      // Resetear el formulario completamente antes de cargar el usuario a editar
+      this.usuarioForm = {
+        id: '', nombre: '', email: '', username: '',
+        password: '', permisos: [], activo: true, ultimoAcceso: ''
+      };
+      // Cargar los datos del usuario seleccionado
+      this.usuarioForm = { ...usuario, permisos: [...(usuario.permisos || [])], password: '' };
+      this.modoEdicion = true;
+      this.submitted = false;
+      this.$nextTick(() => {
+        const modalEl = document.getElementById('modalUsuario');
+        if (!this.modalUsuario && modalEl) {
+          this.modalUsuario = new window.bootstrap.Modal(modalEl, { backdrop: true });
+        }
+        if (this.modalUsuario) this.modalUsuario.show();
+      });
+    },
+    eliminarUsuario(usuario) {
+      Swal.fire({
+        title: '¿Eliminar usuario?',
+        text: 'No podrás revertir esto',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#d33'
+      }).then(async confirm => {
+        if (!confirm.isConfirmed) return;
+        this.cargando = true;
+        this.usuarioSeleccionado = usuario;
+        try {
+          // Llamar al endpoint DELETE lógico
+          const res = await fetch(`http://localhost:8080/api/usuarios/${usuario.id}`, {
+            method: 'DELETE',
+          });
+          if (!res.ok) throw new Error('No se pudo eliminar el usuario');
+          await this.cargarUsuarios();
+          Swal.fire('Eliminado', 'Usuario eliminado', 'success');
+        } catch (e) {
+          console.error(e);
+          Swal.fire('Error', 'No se pudo eliminar el usuario', 'error');
+        } finally {
+          this.cargando = false;
+          this.usuarioSeleccionado = null;
+        }
+      });
+    },
+    toggleSeleccionarTodo() {
+      if (this.todosSeleccionados) {
+        this.usuarioForm.permisos = [];
+      } else {
+        this.usuarioForm.permisos = this.permisosDisponibles.map(p => p.id);
+      }
+    },
+    enviarCredenciales() {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: 'Credenciales enviadas (simulado)',
+        showConfirmButton: false,
+        timer: 2000
+      });
+    },
+    exportarExcel() {
+      const encabezados = ['ID','Nombre','Email','Usuario','Contraseña','Permisos','Activo','Último Acceso'];
+      const data = this.usuarios.map(u => [
+        u.id,
+        u.nombre,
+        u.email,
+        u.username,
+        u.password,
+        (u.permisos || []).join('|'),
+        u.activo ? 'Activo' : 'Inactivo',
+        u.ultimoAcceso || ''
+      ]);
+      const ws = XLSX.utils.aoa_to_sheet([encabezados, ...data]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Usuarios');
+      XLSX.writeFile(wb, 'usuarios.xlsx');
+    }
   }
-}
 };
 </script>
 
@@ -433,34 +477,49 @@ export default {
   --color-error: #b00020;
 }
 
+.container.enca {
+  font-family: 'Nunito Sans', sans-serif;
+}
+
+/* Tarjeta principal */
 .contenedor {
   background-color: var(--color-blanco);
   border-radius: 12px;
   padding: 1.5rem;
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
 }
 
-.container.enca {
-  font-family: 'Nunito Sans', sans-serif;
-}
-
+/* Tarjeta tabla usuarios */
 .card.tabla-usuarios {
   background: var(--color-blanco);
   border-radius: 12px;
   padding: 1rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   border: none;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
+/* Tabla */
+.table {
+  min-width: 600px;
+  width: 100%;
+}
 
 .table th {
   background-color: var(--color-secundario);
   color: var(--color-blanco);
   text-align: center;
   vertical-align: middle;
+  position: sticky;
+  top: 0;
 }
 
 .table td {
+  text-align: center;
   vertical-align: middle;
   color: var(--color-texto);
 }
@@ -469,6 +528,7 @@ export default {
   background-color: #ffe3f0;
 }
 
+/* Etiquetas */
 .badge.bg-success {
   background-color: #28a745;
 }
@@ -477,20 +537,30 @@ export default {
   background-color: #6c757d;
 }
 
+/* Botones */
 .btn-outline-primary,
 .btn-outline-secondary,
 .btn-success {
   font-weight: 500;
   border-radius: 8px;
+  white-space: nowrap;
 }
 
 .btn-outline-primary {
   border-color: var(--color-acento);
   color: var(--color-acento);
 }
-
 .btn-outline-primary:hover {
   background-color: var(--color-acento);
+  color: var(--color-blanco);
+}
+
+.btn-outline-secondary {
+  border-color: var(--color-primario);
+  color: var(--color-primario);
+}
+.btn-outline-secondary:hover {
+  background-color: var(--color-primario);
   color: var(--color-blanco);
 }
 
@@ -499,103 +569,11 @@ export default {
   border: none;
   color: var(--color-blanco);
 }
-
 .btn-success:hover {
   background-color: var(--color-acento);
 }
 
-.btn-outline-secondary {
-  border-color: var(--color-primario);
-  color: var(--color-primario);
-}
-
-.btn-outline-secondary:hover {
-  background-color: var(--color-primario);
-  color: var(--color-blanco);
-}
-
-.modal-usuario .modal-content {
-  border-radius: 12px;
-  border: 1px solid var(--color-secundario);
-}
-
-.modal-usuario .modal-header {
-  background-color: var(--color-suave);
-  color: var(--color-blanco);
-  border-top-left-radius: 12px;
-  border-top-right-radius: 12px;
-}
-
-.modal-title {
-  font-weight: bold;
-}
-
-.modal-body {
-  background-color: var(--color-blanco);
-  padding: 1.5rem;
-}
-
-.modal-body .form-label {
-  font-weight: 500;
-  color: var(--color-primario);
-}
-
-.modal-body .form-control:focus,
-.modal-body .form-select:focus {
-  border-color: var(--color-acento);
-  box-shadow: 0 0 0 0.2rem rgba(124,20,84,0.2);
-}
-
-.invalid-feedback {
-  color: var(--color-error);
-  font-size: 0.85rem;
-}
-
-.table-permisos th {
-  background-color: var(--color-secundario);
-  color: var(--color-blanco);
-  text-align: center;
-}
-
-.table-permisos td {
-  vertical-align: middle;
-}
-
-.modal-footer .btn-secondary {
-  background-color: var(--color-primario);
-  color: var(--color-blanco);
-  border-radius: 8px;
-}
-
-.modal-footer .btn-info {
-  background-color: var(--color-secundario);
-  border: none;
-  color: var(--color-blanco);
-  border-radius: 8px;
-}
-
-.modal-footer .btn-primary {
-  background-color: var(--color-acento);
-  color: var(--color-blanco);
-  border-radius: 8px;
-  border: none;
-}
-
-.modal-footer .btn-danger {
-  background-color: darkred;
-  color: white;
-  border-radius: 8px;
-}
-
-.fade-table-enter-active, .fade-table-leave-active {
-  transition: all 0.3s ease;
-}
-
-.fade-table-enter-from, .fade-table-leave-to {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
+/* Botón circular de acción */
 .btn-accion {
   border: none;
   background-color: var(--color-primario);
@@ -609,26 +587,143 @@ export default {
   align-items: center;
   transition: background 0.2s ease-in-out;
 }
-
 .btn-accion:hover {
   background-color: #a45484;
 }
-
 .btn-accion.editar {
   background-color: var(--color-acento);
 }
-
 .btn-accion.editar:hover {
   background-color: #a45484;
 }
-
 .btn-accion.eliminar {
   background-color: darkred;
 }
-
 .btn-accion.eliminar:hover {
-  background-color: #b22222; /* tono más claro de rojo */
+  background-color: #b22222;
 }
 
+/* Modal */
+.modal-usuario .modal-content {
+  border-radius: 12px;
+  border: 1px solid var(--color-secundario);
+}
+.modal-usuario .modal-header {
+  background-color: var(--color-suave);
+  color: var(--color-blanco);
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+}
+.modal-title {
+  font-weight: bold;
+}
+.modal-body {
+  background-color: var(--color-blanco);
+  padding: 1.5rem;
+}
+.modal-body .form-label {
+  font-weight: 500;
+  color: var(--color-primario);
+}
+.modal-body .form-control:focus,
+.modal-body .form-select:focus {
+  border-color: var(--color-acento);
+  box-shadow: 0 0 0 0.2rem rgba(124,20,84,0.2);
+}
+.invalid-feedback {
+  color: var(--color-error);
+  font-size: 0.85rem;
+}
+.table-permisos th {
+  background-color: var(--color-secundario);
+  color: var(--color-blanco);
+  text-align: center;
+}
+.table-permisos td {
+  vertical-align: middle;
+}
+
+/* Footer botones */
+.modal-footer .btn-secondary {
+  background-color: var(--color-primario);
+  color: var(--color-blanco);
+  border-radius: 8px;
+}
+.modal-footer .btn-info {
+  background-color: var(--color-secundario);
+  border: none;
+  color: var(--color-blanco);
+  border-radius: 8px;
+}
+.modal-footer .btn-primary {
+  background-color: var(--color-acento);
+  color: var(--color-blanco);
+  border-radius: 8px;
+  border: none;
+}
+.modal-footer .btn-danger {
+  background-color: darkred;
+  color: white;
+  border-radius: 8px;
+}
+
+/* Animación entrada tabla */
+.fade-table-enter-active, .fade-table-leave-active {
+  transition: all 0.3s ease;
+}
+.fade-table-enter-from, .fade-table-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+/* Media Queries para responsividad */
+@media (max-width: 992px) {
+  .table {
+    font-size: 0.9rem;
+  }
+  .contenedor {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .table {
+    min-width: 100%;
+  }
+
+  /* Oculta columnas menos importantes si se desea */
+  .table th:nth-child(3),
+  .table td:nth-child(3) {
+    display: none;
+  }
+
+  .btn-accion {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+
+  .modal-body {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .table th,
+  .table td {
+    padding: 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .modal-footer .btn {
+    width: 100%;
+  }
+}
 </style>
+
 
