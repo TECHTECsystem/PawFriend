@@ -6,25 +6,41 @@
 
     <div class="lado-derecho">
       <div class="caja-login">
-        <img src="https://cdn-icons-png.flaticon.com/512/1077/1077114.png" alt="avatar" class="avatar" />
+        <img
+          src="https://cdn-icons-png.flaticon.com/512/1077/1077114.png"
+          alt="avatar"
+          class="avatar"
+        />
         <h2>BIENVENIDO</h2>
 
         <form @submit.prevent="iniciarSesion">
           <div class="campo-formulario">
             <i class="material-icons">person</i>
-            <input type="text" v-model="usuario" placeholder="Usuario" required />
+            <input
+              type="text"
+              v-model="usuario"
+              placeholder="Usuario"
+              required
+            />
           </div>
 
           <div class="campo-formulario">
             <i class="material-icons">lock</i>
-            <input type="password" v-model="contrasena" placeholder="Contraseña" required />
+            <input
+              type="password"
+              v-model="contrasena"
+              placeholder="Contraseña"
+              required
+            />
           </div>
 
           <div class="recuperar-contrasena">
             <a href="#">¿Olvidaste tu contraseña?</a>
           </div>
 
-          <button type="submit" class="boton-login">INICIAR SESIÓN</button>
+          <button type="submit" class="boton-login">
+            INICIAR SESIÓN
+          </button>
         </form>
 
         <p v-if="error" class="mensaje-error">{{ error }}</p>
@@ -36,15 +52,19 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useStore } from 'vuex'
 import Swal from 'sweetalert2'
-import axios from 'axios'
 
 const usuario = ref('')
 const contrasena = ref('')
+const error = ref('')
 const router = useRouter()
+const store = useStore()
 
 const iniciarSesion = async () => {
-  if (usuario.value === '' || contrasena.value === '') {
+  error.value = ''
+
+  if (!usuario.value || !contrasena.value) {
     Swal.fire({
       icon: 'warning',
       title: 'Campos incompletos',
@@ -53,35 +73,31 @@ const iniciarSesion = async () => {
     return
   }
 
-  try {
-    const res = await axios.post('http://localhost:8080/login', {
-      username: usuario.value,
-      password: contrasena.value
-    })
+  const ok = await store.dispatch('login', {
+    username: usuario.value,
+    password: contrasena.value
+  })
 
-    const datos = res.data
-
-    // Guardar en localStorage si lo necesitas
-    localStorage.setItem('usuario', JSON.stringify(datos))
-
+  if (ok) {
     Swal.fire({
       icon: 'success',
-      title: `¡Bienvenido, ${datos.nombre}!`,
+      title: `¡Bienvenido, ${usuario.value}!`,
       text: 'Inicio de sesión exitoso',
       showConfirmButton: false,
       timer: 1500
-    }).then(() => {
-      router.push('/dashboard')
     })
-  } catch (err) {
+    router.push('/dashboard')
+  } else {
     Swal.fire({
       icon: 'error',
       title: 'Error de autenticación',
-      text: err.response?.data?.error || 'No se pudo iniciar sesión'
+      text: 'Usuario o contraseña incorrectos.'
     })
+    error.value = 'Usuario o contraseña incorrectos.'
   }
 }
 </script>
+
 
 
 <style scoped>

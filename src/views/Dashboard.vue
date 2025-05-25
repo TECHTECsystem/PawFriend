@@ -32,40 +32,42 @@
 
     <!-- Citas y productos -->
     <div class="row">
-      <!-- Citas agendadas -->
+      <!-- Productos más vendidos -->
       <div class="col-md-6 mb-4">
         <div class="card h-100 tarjeta-tabla">
           <div class="card-body">
             <h5 class="card-title d-flex align-items-center">
-              <i class="material-icons me-2">event_note</i>
-              Citas agendadas hoy
+              <i class="material-icons me-2">trending_up</i>
+              Productos y servicios más vendidos
             </h5>
 
             <div class="tabla-scroll">
               <table class="table table-sm align-middle mb-0">
                 <thead>
                   <tr>
-                    <th>Hora</th>
+                    <th>Tipo</th>
                     <th>Nombre</th>
-                    <th>Servicio</th>
+                    <th>Cantidad vendida</th>
+                    <th>Ingreso total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(cita, index) in citasPaginadas" :key="index">
-                    <td>{{ cita.hora }}</td>
-                    <td>{{ cita.nombre }}</td>
-                    <td>{{ cita.servicio }}</td>
+                  <tr v-for="(item, index) in topVendidosPaginados" :key="index">
+                    <td>{{ item.tipo }}</td>
+                    <td>{{ item.nombre }}</td>
+                    <td>{{ item.total_vendido }}</td>
+                    <td>${{ Number(item.ingreso_total).toFixed(2) }}</td>
                   </tr>
-                  <tr v-if="citasPaginadas.length === 0">
-                    <td colspan="3" class="text-muted">Sin citas registradas.</td>
+                  <tr v-if="topVendidosPaginados.length === 0">
+                    <td colspan="4" class="text-muted">Sin ventas registradas.</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
             <div class="d-flex justify-content-end mt-2">
-              <button class="btn btn-outline-light btn-sm me-2" :disabled="paginaCitas === 1" @click="paginaCitas--">Anterior</button>
-              <button class="btn btn-outline-light btn-sm" :disabled="paginaCitas === totalPaginasCitas" @click="paginaCitas++">Siguiente</button>
+              <button class="btn btn-outline-light btn-sm me-2" :disabled="paginaTopProductos === 1" @click="paginaTopProductos--">Anterior</button>
+              <button class="btn btn-outline-light btn-sm" :disabled="paginaTopProductos === totalPaginasTopVendidos" @click="paginaTopProductos++">Siguiente</button>
             </div>
           </div>
         </div>
@@ -144,11 +146,6 @@ export default {
       fecha: '',
       hora: '',
       intervalo: null,
-      loading: {
-        kpis: false,
-        citas: false,
-        productos: false
-      },
       kpis: {
         ventasDia: 0,
         ventasMes: 0,
@@ -166,18 +163,24 @@ export default {
       citasPorPagina: 5,
       productos: [],
       paginaProductos: 1,
-      productosPorPagina: 5
+      productosPorPagina: 5,
+      topProductos: [],
+      paginaTopProductos: 1,
+      topProductosPorPagina: 5,
+      topServicios: [],
+      paginaTopServicios: 1,
+      topServiciosPorPagina: 5
     }
   },
   computed: {
-      kpisFormateados() {
-    return [
-      { titulo: 'Ventas del día', valor: `$${parseFloat(this.kpis.ventasDia).toFixed(2)}`, icono: 'attach_money' },
-      { titulo: 'Ventas del mes', valor: `$${parseFloat(this.kpis.ventasMes).toFixed(2)}`, icono: 'calendar_today' },
-      { titulo: 'Clientes registrados', valor: this.kpis.clientes, icono: 'people' },
-      { titulo: 'Productos activos', valor: this.kpis.productosActivos, icono: 'inventory_2' }
-    ]
-  },
+    kpisFormateados() {
+      return [
+        { titulo: 'Ventas del día', valor: `$${this.kpis.ventasDia.toFixed(2)}`, icono: 'attach_money' },
+        { titulo: 'Ventas del mes', valor: `$${this.kpis.ventasMes.toFixed(2)}`, icono: 'calendar_today' },
+        { titulo: 'Clientes registrados', valor: this.kpis.clientes, icono: 'people' },
+        { titulo: 'Productos activos', valor: this.kpis.productosActivos, icono: 'inventory_2' }
+      ]
+    },
     citasPaginadas() {
       const start = (this.paginaCitas - 1) * this.citasPorPagina
       return this.citas.slice(start, start + this.citasPorPagina)
@@ -191,138 +194,154 @@ export default {
     },
     totalPaginasProductos() {
       return Math.ceil(this.productos.length / this.productosPorPagina)
+    },
+    topVendidosPaginados() {
+      const todos = [
+        ...this.topProductos.map(p => ({ tipo: 'Producto', ...p })),
+        ...this.topServicios.map(s => ({ tipo: 'Servicio', ...s }))
+      ]
+      const start = (this.paginaTopProductos - 1) * this.topProductosPorPagina
+      return todos.slice(start, start + this.topProductosPorPagina)
+    },
+    totalPaginasTopVendidos() {
+      const total = this.topProductos.length + this.topServicios.length
+      return Math.ceil(total / this.topProductosPorPagina) || 1
     }
   },
   mounted() {
-    this.cargarUsuario()
+    const token = localStorage.getItem('token')
+    const id_usuario = localStorage.getItem('id_usuario')
+    if (!token || !id_usuario) {
+      this.$router.push('/login')
+      return
+    }
+
     this.actualizarReloj()
     this.intervalo = setInterval(this.actualizarReloj, 1000)
-    this.cargarDatosDashboard()
+
+    this.obtenerUsuario(token, id_usuario)
+    this.obtenerDashboard(token)
   },
-  beforeDestroy() {
+  beforeUnmount() {
     clearInterval(this.intervalo)
   },
   methods: {
-    cargarUsuario() {
-      const usuarioGuardado = localStorage.getItem('usuario')
-      if (!usuarioGuardado) {
-        this.$router.push('/login')
-        return
-      }
-      this.usuario = JSON.parse(usuarioGuardado)
-    },
     actualizarReloj() {
       const ahora = new Date()
-      const opcionesFecha = { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
+      const opcionesFecha = {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
       }
       this.fecha = ahora.toLocaleDateString('es-MX', opcionesFecha)
       this.hora = ahora.toLocaleTimeString('es-MX')
     },
-    async cargarDatosDashboard() {
-      await Promise.all([
-        this.cargarKPIs(),
-        this.cargarCitas(),
-        this.cargarProductosBajoStock()
-      ])
-    },
-    async cargarKPIs() {
-      this.loading.kpis = true
+    async obtenerUsuario(token, id_usuario) {
       try {
-        const res = await fetch('http://localhost:8080/dashboard/kpis')
-        
-        if (!res.ok) {
-          throw new Error(`Error HTTP: ${res.status}`)
-        }
-        
+        const res = await fetch(`http://localhost:8080/api/usuarios/${id_usuario}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
-        this.kpis = {
-          ventasDia: data.ventasDia || 0,
-          ventasMes: data.ventasMes || 0,
-          clientes: data.clientes || 0,
-          productosActivos: data.productosActivos || 0
-        }
-      } catch (error) {
-        console.error('Error al cargar KPIs:', error)
+        this.usuario = { nombre: data.nombre, rol: data.rol }
+      } catch (err) {
+        console.error('Error al cargar usuario:', err)
         Swal.fire({
           icon: 'error',
-          title: 'Error',
-          text: 'No se pudieron cargar los indicadores',
+          title: 'Sesión expirada',
+          text: 'Por favor, inicia sesión de nuevo.',
           confirmButtonColor: '#7c245c'
+        }).then(() => {
+          localStorage.clear()
+          this.$router.push('/login')
         })
-      } finally {
-        this.loading.kpis = false
       }
     },
-    async cargarCitas() {
-      this.loading.citas = true
+    async obtenerDashboard(token) {
       try {
-        const res = await fetch('http://localhost:8080/dashboard/citas-hoy')
-        
-        if (!res.ok) {
-          throw new Error(`Error HTTP: ${res.status}`)
-        }
-        
+        const res = await fetch('http://localhost:8080/api/dashboard', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
-        this.citas = Array.isArray(data) ? data : []
-      } catch (error) {
-        console.error('Error al cargar citas:', error)
+
+        // Asignar KPIs
+        this.kpis.ventasDia        = data.ventasDia
+        this.kpis.ventasMes        = data.ventasMes
+        this.kpis.clientes         = data.clientes
+        this.kpis.productosActivos = data.productosActivos
+
+        // Asignar citas
+        this.citas = data.citasHoy.map(c => ({
+          hora: c.hora,
+          nombre: c.cliente_id,    // Asume que tu endpoint incluye nombre; si no, haría join en backend
+          servicio: c.servicio_id   // Igual que arriba
+        }))
+
+        // Asignar productos con stock bajo
+        this.productos = data.productosStockBajo.map(p => ({
+          nombre: p.nombre,
+          stock: p.stock,
+          minimo: p.stock_minimo
+        }))
+
+        // Asignar productos más vendidos
+        this.topProductos = data.topProductos.map(p => ({
+          nombre: p.nombre,
+          total_vendido: p.total_vendido,
+          ingreso_total: p.ingreso_total
+        }))
+
+        // Asignar servicios más vendidos
+        this.topServicios = data.topServicios.map(s => ({
+          nombre: s.nombre,
+          total_vendido: s.veces_vendido,
+          ingreso_total: s.ingreso_total
+        }))
+      } catch (err) {
+        console.error('Error al cargar dashboard:', err)
         Swal.fire({
           icon: 'error',
           title: 'Error',
-          text: 'No se pudieron cargar las citas',
+          text: 'No se pudieron cargar los datos del dashboard.',
           confirmButtonColor: '#7c245c'
         })
-      } finally {
-        this.loading.citas = false
-      }
-    },
-    async cargarProductosBajoStock() {
-      this.loading.productos = true
-      try {
-        const res = await fetch('http://localhost:8080/dashboard/stock-bajo')
-        
-        if (!res.ok) {
-          throw new Error(`Error HTTP: ${res.status}`)
-        }
-        
-        const data = await res.json()
-        this.productos = Array.isArray(data) ? data.map(p => ({
-          nombre: p.nombre || '',
-          stock: p.stock || 0,
-          minimo: p.minimo || 0
-        })) : []
-      } catch (error) {
-        console.error('Error al cargar productos con bajo stock:', error)
-        Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: 'No se pudieron cargar los productos',
-          confirmButtonColor: '#7c245c'
-        })
-      } finally {
-        this.loading.productos = false
       }
     }
   }
 }
 </script>
 
-
-
 <style scoped>
+:root {
+  --color-primario: #7c245c;
+  --color-secundario: #cc8bab;
+  --color-acento: #7c1454;
+  --color-suave: #a45484;
+  --color-claro: #cc94ac;
+  --color-fondo: #fdfbfc;
+  --color-texto: #2b2b2b;
+  --color-blanco: #ffffff;
+  --color-gris: #e9e9e9;
+}
+
 .encabezado-dashboard {
-  background-color: #7c245c;
+  background-color: var(--color-primario);
   border-radius: 8px;
   font-family: 'Nunito Sans', sans-serif;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .saludo h4 {
-  color: #ffffff;
+  color: var(--color-blanco);
   font-weight: 700;
+  margin: 0;
 }
 
 .saludo .rol {
@@ -333,14 +352,20 @@ export default {
 
 .reloj {
   color: #e9c8dc;
+  text-align: right;
+  flex-shrink: 0;
 }
 
 .tarjeta-kpi {
   background-color: #fdf6f9;
-  border-left: 5px solid #7c245c;
+  border-left: 5px solid var(--color-primario);
   border-radius: 8px;
-  color: #7c245c;
+  color: var(--color-primario);
   transition: transform 0.2s ease;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .tarjeta-kpi:hover {
@@ -349,22 +374,29 @@ export default {
 
 .kpi-icon {
   font-size: 2.5rem;
-  color: #7c245c;
+  color: var(--color-primario);
 }
 
 .tarjeta-tabla {
-  background-color: #a45484;
-  color: white;
+  background-color: var(--color-suave);
+  color: var(--color-blanco);
   border-radius: 10px;
+  padding: 1rem;
+}
+
+.tarjeta-tabla .card-title {
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
 }
 
 .tarjeta-tabla .card-title i {
   font-size: 1.3rem;
-  color: white;
+  color: var(--color-blanco);
 }
 
 .tabla-scroll {
-  background-color: white;
+  background-color: var(--color-blanco);
   border-radius: 6px;
   padding: 0.5rem;
   overflow-x: auto;
@@ -372,9 +404,10 @@ export default {
 }
 
 .tarjeta-tabla .btn {
-  background-color: #cc94ac;
-  color: #fff;
+  background-color: var(--color-claro);
+  color: var(--color-blanco);
   border: none;
+  font-weight: 600;
 }
 
 .tarjeta-tabla .btn:disabled {
@@ -382,8 +415,8 @@ export default {
 }
 
 .btn-acceso-grande {
-  background-color: #a45484;
-  color: white;
+  background-color: var(--color-suave);
+  color: var(--color-blanco);
   border-radius: 16px;
   padding: 2rem 1rem;
   margin-bottom: 1rem;
@@ -394,16 +427,58 @@ export default {
   display: block;
   text-decoration: none;
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+  text-align: center;
 }
 
 .btn-acceso-grande:hover {
-  background-color: #cc94ac;
+  background-color: var(--color-claro);
   transform: scale(1.02);
 }
 
 .btn-acceso-grande i {
   font-size: 2rem;
+  display: block;
+  margin-bottom: 0.5rem;
 }
 
+/* RESPONSIVE BREAKPOINTS */
+@media (max-width: 992px) {
+  .encabezado-dashboard {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+  }
 
+  .tarjeta-kpi {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .btn-acceso-grande {
+    padding: 1.5rem 1rem;
+    font-size: 0.95rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .btn-acceso-grande {
+    padding: 1rem 0.8rem;
+    font-size: 0.9rem;
+    min-height: 100px;
+  }
+
+  .kpi-icon {
+    font-size: 2rem;
+  }
+
+  .tarjeta-kpi {
+    font-size: 0.95rem;
+  }
+
+  .reloj {
+    width: 100%;
+    text-align: left;
+  }
+}
 </style>
+
